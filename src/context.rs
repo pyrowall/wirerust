@@ -2,7 +2,7 @@
 //!
 //! This module provides the FilterContext type.
 
-use crate::types::{FieldType, LiteralValue};
+use crate::types::LiteralValue;
 use crate::schema::FilterSchema;
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};

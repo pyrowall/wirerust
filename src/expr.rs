@@ -2,7 +2,7 @@
 //!
 //! This module provides the FilterExpr type and related AST node types.
 
-use crate::types::{FieldType, LiteralValue};
+use crate::types::LiteralValue;
 use crate::schema::FilterSchema;
 use serde::{Serialize, Deserialize};
 use crate::WirerustError;
@@ -57,12 +57,11 @@ pub trait ExprVisitor {
 pub struct FilterParser<'a> {
     input: &'a str,
     pos: usize,
-    schema: &'a FilterSchema,
 }
 
 impl<'a> FilterParser<'a> {
-    pub fn new(input: &'a str, schema: &'a FilterSchema) -> Self {
-        Self { input, pos: 0, schema }
+    pub fn new(input: &'a str, _schema: &'a FilterSchema) -> Self {
+        Self { input, pos: 0 }
     }
 
     pub fn parse(input: &str, schema: &FilterSchema) -> Result<FilterExpr, WirerustError> {
