@@ -45,7 +45,22 @@ impl DefaultCompiler {
                 let inner_fn = DefaultCompiler::compile(*inner.clone(), schema.clone(), functions.clone());
                 Box::new(move |ctx| !inner_fn(ctx))
             }
-            FilterExpr::Value(_) => Box::new(|_| false), // Not meaningful at top level
+            FilterExpr::Value(val) => {
+                let val = val.clone();
+                let functions = functions.clone();
+                Box::new(move |ctx| {
+                    let result = eval_expr(&FilterExpr::Value(val.clone()), ctx, &functions);
+                    // Convert the result to boolean
+                    match result {
+                        LiteralValue::Bool(b) => b,
+                        LiteralValue::Int(i) => i != 0,
+                        LiteralValue::Bytes(_) => true, // Non-empty string/bytes are truthy
+                        LiteralValue::Array(arr) => !arr.is_empty(), // Non-empty arrays are truthy
+                        LiteralValue::Ip(_) => true, // IP addresses are truthy
+                        LiteralValue::Map(map) => !map.is_empty(), // Non-empty maps are truthy
+                    }
+                })
+            }
             FilterExpr::FunctionCall { name, args } => {
                 let name = name.clone();
                 let arg_exprs = args.clone();

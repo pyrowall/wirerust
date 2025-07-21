@@ -77,10 +77,24 @@ impl FilterFunction for SumFunction {
     }
 }
 
+// Example built-in function: lower(bytes) -> bytes (string to lowercase)
+pub struct LowerFunction;
+impl FilterFunction for LowerFunction {
+    fn call(&self, args: &[LiteralValue]) -> Option<LiteralValue> {
+        if let Some(LiteralValue::Bytes(bytes)) = args.get(0) {
+            let s = String::from_utf8_lossy(bytes).to_lowercase();
+            Some(LiteralValue::Bytes(s.into_bytes()))
+        } else {
+            None
+        }
+    }
+}
+
 /// Register all built-in functions in a registry
 pub fn register_builtins(reg: &mut FunctionRegistry) {
     reg.register("len", LenFunction);
     reg.register("upper", UpperFunction);
+    reg.register("lower", LowerFunction);
     reg.register("sum", SumFunction);
 }
 
