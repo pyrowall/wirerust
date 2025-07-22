@@ -85,7 +85,7 @@ impl<'a> FilterParser<'a> {
 
     fn parse_or(&mut self) -> Result<FilterExpr, WirerustError> {
         let mut left = self.parse_and()?;
-        while self.consume("||") {
+        while self.consume("||") || self.consume("or") {
             let right = self.parse_and()?;
             left = FilterExpr::LogicalOp {
                 op: LogicalOp::Or,
@@ -98,7 +98,7 @@ impl<'a> FilterParser<'a> {
 
     fn parse_and(&mut self) -> Result<FilterExpr, WirerustError> {
         let mut left = self.parse_not()?;
-        while self.consume("&&") {
+        while self.consume("&&") || self.consume("and") {
             let right = self.parse_not()?;
             left = FilterExpr::LogicalOp {
                 op: LogicalOp::And,
@@ -403,6 +403,25 @@ mod tests {
         match expr {
             FilterExpr::LogicalOp { op, .. } => assert_eq!(op, LogicalOp::And),
             _ => panic!("Expected logical op"),
+        }
+        let expr_word = FilterParser::parse("foo == 1 and bar == \"baz\"", &schema()).unwrap();
+        match expr_word {
+            FilterExpr::LogicalOp { op, .. } => assert_eq!(op, LogicalOp::And),
+            _ => panic!("Expected logical op for 'and'"),
+        }
+    }
+
+    #[test]
+    fn test_parse_logical_or() {
+        let expr = FilterParser::parse("foo == 1 || bar == \"baz\"", &schema()).unwrap();
+        match expr {
+            FilterExpr::LogicalOp { op, .. } => assert_eq!(op, LogicalOp::Or),
+            _ => panic!("Expected logical op"),
+        }
+        let expr_word = FilterParser::parse("foo == 1 or bar == \"baz\"", &schema()).unwrap();
+        match expr_word {
+            FilterExpr::LogicalOp { op, .. } => assert_eq!(op, LogicalOp::Or),
+            _ => panic!("Expected logical op for 'or'"),
         }
     }
 
