@@ -241,11 +241,17 @@ impl<'a> FilterParser<'a> {
     fn parse_operator(&mut self) -> Result<(ComparisonOp, &'static str), WirerustError> {
         let ops = [
             ("==", ComparisonOp::Eq),
+            ("eq", ComparisonOp::Eq),
             ("!=", ComparisonOp::Neq),
+            ("ne", ComparisonOp::Neq),
             ("<=", ComparisonOp::Lte),
+            ("le", ComparisonOp::Lte),
             (">=", ComparisonOp::Gte),
+            ("ge", ComparisonOp::Gte),
             ("<", ComparisonOp::Lt),
+            ("lt", ComparisonOp::Lt),
             (">", ComparisonOp::Gt),
+            ("gt", ComparisonOp::Gt),
             ("in", ComparisonOp::In),
             ("not in", ComparisonOp::NotIn),
             ("matches", ComparisonOp::Matches),
@@ -394,6 +400,41 @@ mod tests {
                 assert_eq!(*right, FilterExpr::Value(LiteralValue::Int(42)));
             }
             _ => panic!("Expected comparison expr"),
+        }
+    }
+
+    #[test]
+    fn test_parse_comparison_word_operators() {
+        let sch = schema();
+        let eq = FilterParser::parse("foo eq 42", &sch).unwrap();
+        match eq {
+            FilterExpr::Comparison { op, .. } => assert_eq!(op, ComparisonOp::Eq),
+            _ => panic!("Expected eq comparison"),
+        }
+        let ne = FilterParser::parse("foo ne 42", &sch).unwrap();
+        match ne {
+            FilterExpr::Comparison { op, .. } => assert_eq!(op, ComparisonOp::Neq),
+            _ => panic!("Expected ne comparison"),
+        }
+        let lt = FilterParser::parse("foo lt 42", &sch).unwrap();
+        match lt {
+            FilterExpr::Comparison { op, .. } => assert_eq!(op, ComparisonOp::Lt),
+            _ => panic!("Expected lt comparison"),
+        }
+        let le = FilterParser::parse("foo le 42", &sch).unwrap();
+        match le {
+            FilterExpr::Comparison { op, .. } => assert_eq!(op, ComparisonOp::Lte),
+            _ => panic!("Expected le comparison"),
+        }
+        let gt = FilterParser::parse("foo gt 42", &sch).unwrap();
+        match gt {
+            FilterExpr::Comparison { op, .. } => assert_eq!(op, ComparisonOp::Gt),
+            _ => panic!("Expected gt comparison"),
+        }
+        let ge = FilterParser::parse("foo ge 42", &sch).unwrap();
+        match ge {
+            FilterExpr::Comparison { op, .. } => assert_eq!(op, ComparisonOp::Gte),
+            _ => panic!("Expected ge comparison"),
         }
     }
 
