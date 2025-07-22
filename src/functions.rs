@@ -39,63 +39,52 @@ impl Clone for FunctionRegistry {
     }
 }
 
-// Example built-in function: len(array) -> int
-pub struct LenFunction;
-impl FilterFunction for LenFunction {
-    fn call(&self, args: &[LiteralValue]) -> Option<LiteralValue> {
+macro_rules! builtin_functions {
+    ($( $name:ident: $func_name:expr, $args:ident => $body:block ),* $(,)?) => {
+        $(
+            pub struct $name;
+            impl FilterFunction for $name {
+                fn call(&self, $args: &[LiteralValue]) -> Option<LiteralValue> $body
+            }
+        )*
+        pub fn register_builtins(reg: &mut FunctionRegistry) {
+            $(reg.register($func_name, $name);)*
+        }
+    };
+}
+
+builtin_functions! {
+    LenFunction: "len", args => {
         if let Some(LiteralValue::Array(arr)) = args.get(0) {
             Some(LiteralValue::Int(arr.len() as i64))
         } else {
             None
         }
-    }
-}
-
-// Example built-in function: upper(bytes) -> bytes (string to uppercase)
-pub struct UpperFunction;
-impl FilterFunction for UpperFunction {
-    fn call(&self, args: &[LiteralValue]) -> Option<LiteralValue> {
+    },
+    UpperFunction: "upper", args => {
         if let Some(LiteralValue::Bytes(bytes)) = args.get(0) {
-            let s = String::from_utf8_lossy(bytes).to_uppercase();
+            let s = String::from_utf8_lossy(&bytes).to_uppercase();
             Some(LiteralValue::Bytes(s.into_bytes()))
         } else {
             None
         }
-    }
-}
-
-// Example built-in function: sum(array of int) -> int
-pub struct SumFunction;
-impl FilterFunction for SumFunction {
-    fn call(&self, args: &[LiteralValue]) -> Option<LiteralValue> {
+    },
+    LowerFunction: "lower", args => {
+        if let Some(LiteralValue::Bytes(bytes)) = args.get(0) {
+            let s = String::from_utf8_lossy(&bytes).to_lowercase();
+            Some(LiteralValue::Bytes(s.into_bytes()))
+        } else {
+            None
+        }
+    },
+    SumFunction: "sum", args => {
         if let Some(LiteralValue::Array(arr)) = args.get(0) {
             let sum: i64 = arr.iter().filter_map(|v| if let LiteralValue::Int(i) = v { Some(*i) } else { None }).sum();
             Some(LiteralValue::Int(sum))
         } else {
             None
         }
-    }
-}
-
-// Example built-in function: lower(bytes) -> bytes (string to lowercase)
-pub struct LowerFunction;
-impl FilterFunction for LowerFunction {
-    fn call(&self, args: &[LiteralValue]) -> Option<LiteralValue> {
-        if let Some(LiteralValue::Bytes(bytes)) = args.get(0) {
-            let s = String::from_utf8_lossy(bytes).to_lowercase();
-            Some(LiteralValue::Bytes(s.into_bytes()))
-        } else {
-            None
-        }
-    }
-}
-
-/// Register all built-in functions in a registry
-pub fn register_builtins(reg: &mut FunctionRegistry) {
-    reg.register("len", LenFunction);
-    reg.register("upper", UpperFunction);
-    reg.register("lower", LowerFunction);
-    reg.register("sum", SumFunction);
+    },
 }
 
 #[cfg(test)]
