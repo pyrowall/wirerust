@@ -46,6 +46,8 @@ pub enum ComparisonOp {
     In,
     NotIn,
     Matches, // for regex
+    Wildcard, // case-insensitive wildcard
+    StrictWildcard, // case-sensitive wildcard
 }
 
 // Visitor trait for traversing the AST
@@ -255,6 +257,8 @@ impl<'a> FilterParser<'a> {
             ("in", ComparisonOp::In),
             ("not in", ComparisonOp::NotIn),
             ("matches", ComparisonOp::Matches),
+            ("wildcard", ComparisonOp::Wildcard),
+            ("strict wildcard", ComparisonOp::StrictWildcard),
         ];
         self.skip_whitespace();
         for (s, op) in ops.iter() {
@@ -513,6 +517,21 @@ mod tests {
                 }
             }
             _ => panic!("Expected comparison expr with list literal"),
+        }
+    }
+
+    #[test]
+    fn test_parse_wildcard_operators() {
+        let sch = schema();
+        let wc = FilterParser::parse("bar wildcard \"foo*bar\"", &sch).unwrap();
+        match wc {
+            FilterExpr::Comparison { op, .. } => assert_eq!(op, ComparisonOp::Wildcard),
+            _ => panic!("Expected wildcard comparison"),
+        }
+        let swc = FilterParser::parse("bar strict wildcard \"foo*bar\"", &sch).unwrap();
+        match swc {
+            FilterExpr::Comparison { op, .. } => assert_eq!(op, ComparisonOp::StrictWildcard),
+            _ => panic!("Expected strict wildcard comparison"),
         }
     }
 } 

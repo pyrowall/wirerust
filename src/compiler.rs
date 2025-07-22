@@ -39,6 +39,8 @@ impl DefaultCompiler {
                         ComparisonOp::In => cmp_in(&lval, &rval),
                         ComparisonOp::NotIn => !cmp_in(&lval, &rval),
                         ComparisonOp::Matches => cmp_matches(&lval, &rval),
+                        ComparisonOp::Wildcard => cmp_wildcard(&lval, &rval, false),
+                        ComparisonOp::StrictWildcard => cmp_wildcard(&lval, &rval, true),
                     };
                     Ok(result)
                 })
@@ -156,6 +158,57 @@ fn cmp_matches(a: &LiteralValue, b: &LiteralValue) -> bool {
     }
 }
 
+// Helper for wildcard and strict wildcard comparisons
+fn cmp_wildcard(a: &LiteralValue, b: &LiteralValue, case_sensitive: bool) -> bool {
+    match (a, b) {
+        (LiteralValue::Bytes(bytes), LiteralValue::Bytes(pattern)) => {
+            let s = match std::str::from_utf8(bytes) {
+                Ok(s) => s,
+                Err(_) => return false,
+            };
+            let pat = match std::str::from_utf8(pattern) {
+                Ok(p) => p,
+                Err(_) => return false,
+            };
+            wildcard_match(s, pat, case_sensitive)
+        }
+        _ => false,
+    }
+}
+
+fn wildcard_match(s: &str, pat: &str, case_sensitive: bool) -> bool {
+    let (s, pat) = if case_sensitive {
+        (s.to_string(), pat.to_string())
+    } else {
+        (s.to_lowercase(), pat.to_lowercase())
+    };
+    wildcard_match_inner(&s, &pat)
+}
+
+fn wildcard_match_inner(s: &str, pat: &str) -> bool {
+    let s_bytes = s.as_bytes();
+    let pat_bytes = pat.as_bytes();
+    wildcard_match_bytes(s_bytes, pat_bytes)
+}
+
+fn wildcard_match_bytes(s: &[u8], pat: &[u8]) -> bool {
+    if pat.is_empty() {
+        return s.is_empty();
+    }
+    if pat[0] == b'*' {
+        for i in 0..=s.len() {
+            if wildcard_match_bytes(&s[i..], &pat[1..]) {
+                return true;
+            }
+        }
+        false
+    } else if !s.is_empty() && (pat[0] == s[0]) {
+        wildcard_match_bytes(&s[1..], &pat[1..])
+    } else {
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,5 +320,35 @@ mod tests {
         };
         let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
         assert!(!filter(&context()).unwrap());
+    }
+
+    #[test]
+    fn test_compile_and_execute_wildcard() {
+        let expr = FilterExpr::Comparison {
+            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(b"bar".to_vec()))),
+            op: ComparisonOp::Wildcard,
+            right: Box::new(FilterExpr::Value(LiteralValue::Bytes(b"b*r".to_vec()))),
+        };
+        let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
+        let mut ctx = context();
+        ctx.set("bar", LiteralValue::Bytes(b"bar".to_vec()), &schema()).unwrap();
+        assert!(filter(&ctx).unwrap());
+        ctx.set("bar", LiteralValue::Bytes(b"BAR".to_vec()), &schema()).unwrap();
+        assert!(filter(&ctx).unwrap()); // case-insensitive
+    }
+
+    #[test]
+    fn test_compile_and_execute_strict_wildcard() {
+        let expr = FilterExpr::Comparison {
+            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(b"bar".to_vec()))),
+            op: ComparisonOp::StrictWildcard,
+            right: Box::new(FilterExpr::Value(LiteralValue::Bytes(b"b*r".to_vec()))),
+        };
+        let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
+        let mut ctx = context();
+        ctx.set("bar", LiteralValue::Bytes(b"bar".to_vec()), &schema()).unwrap();
+        assert!(filter(&ctx).unwrap());
+        ctx.set("bar", LiteralValue::Bytes(b"BAR".to_vec()), &schema()).unwrap();
+        assert!(!filter(&ctx).unwrap()); // case-sensitive
     }
 } 
