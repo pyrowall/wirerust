@@ -85,6 +85,24 @@ builtin_functions! {
             None
         }
     },
+    StartsWithFunction: "starts_with", args => {
+        if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(prefix))) = (args.get(0), args.get(1)) {
+            let h = String::from_utf8_lossy(haystack);
+            let p = String::from_utf8_lossy(prefix);
+            Some(LiteralValue::Bool(h.starts_with(&*p)))
+        } else {
+            None
+        }
+    },
+    EndsWithFunction: "ends_with", args => {
+        if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(suffix))) = (args.get(0), args.get(1)) {
+            let h = String::from_utf8_lossy(haystack);
+            let s = String::from_utf8_lossy(suffix);
+            Some(LiteralValue::Bool(h.ends_with(&*s)))
+        } else {
+            None
+        }
+    },
 }
 
 #[cfg(test)]
@@ -113,5 +131,27 @@ mod tests {
         let arr = LiteralValue::Array(vec![LiteralValue::Int(1), LiteralValue::Int(2), LiteralValue::Int(3)]);
         let result = reg.get("sum").unwrap().call(&[arr]);
         assert_eq!(result, Some(LiteralValue::Int(6)));
+    }
+    #[test]
+    fn test_starts_with_function() {
+        let mut reg = FunctionRegistry::new();
+        reg.register("starts_with", StartsWithFunction);
+        let val = LiteralValue::Bytes(b"foobar".to_vec());
+        let prefix = LiteralValue::Bytes(b"foo".to_vec());
+        let wrong = LiteralValue::Bytes(b"bar".to_vec());
+        assert_eq!(reg.get("starts_with").unwrap().call(&[val.clone(), prefix.clone()]), Some(LiteralValue::Bool(true)));
+        assert_eq!(reg.get("starts_with").unwrap().call(&[val.clone(), wrong.clone()]), Some(LiteralValue::Bool(false)));
+        assert_eq!(reg.get("starts_with").unwrap().call(&[wrong.clone(), prefix.clone()]), Some(LiteralValue::Bool(false)));
+    }
+    #[test]
+    fn test_ends_with_function() {
+        let mut reg = FunctionRegistry::new();
+        reg.register("ends_with", EndsWithFunction);
+        let val = LiteralValue::Bytes(b"foobar".to_vec());
+        let suffix = LiteralValue::Bytes(b"bar".to_vec());
+        let wrong = LiteralValue::Bytes(b"foo".to_vec());
+        assert_eq!(reg.get("ends_with").unwrap().call(&[val.clone(), suffix.clone()]), Some(LiteralValue::Bool(true)));
+        assert_eq!(reg.get("ends_with").unwrap().call(&[val.clone(), wrong.clone()]), Some(LiteralValue::Bool(false)));
+        assert_eq!(reg.get("ends_with").unwrap().call(&[wrong.clone(), suffix.clone()]), Some(LiteralValue::Bool(false)));
     }
 } 
