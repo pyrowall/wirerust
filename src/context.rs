@@ -2,7 +2,8 @@
 //!
 //! This module provides the FilterContext type.
 
-use crate::types::LiteralValue;
+use crate::types::{LiteralValue};
+use crate::types::FieldType;
 use crate::schema::FilterSchema;
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
@@ -23,11 +24,19 @@ impl FilterContext {
     pub fn set(&mut self, field: &str, value: LiteralValue, schema: &FilterSchema) -> Result<(), WirerustError> {
         match schema.get_field_type(field) {
             Some(expected_type) => {
-                if &value.get_type() == expected_type {
+                let value_type = value.get_type();
+                // Special case: allow empty arrays for any array type
+                if let (FieldType::Array(expected_elem), FieldType::Array(value_elem)) = (expected_type, &value_type) {
+                    if let FieldType::Unknown = **value_elem {
+                        self.values.insert(field.to_string(), value);
+                        return Ok(());
+                    }
+                }
+                if &value_type == expected_type {
                     self.values.insert(field.to_string(), value);
                     Ok(())
                 } else {
-                    Err(WirerustError::TypeError(format!("Type mismatch for field '{}': expected {:?}, got {:?}", field, expected_type, value.get_type())))
+                    Err(WirerustError::TypeError(format!("Type mismatch for field '{}': expected {:?}, got {:?}", field, expected_type, value_type)))
                 }
             }
             None => Err(WirerustError::FieldNotFound(field.to_string())),

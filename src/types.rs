@@ -14,6 +14,7 @@ pub enum FieldType {
     Ip,
     Array(Box<FieldType>),
     Map(Box<FieldType>),
+    Unknown, // Added for type inference failures
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -40,10 +41,34 @@ impl LiteralValue {
             LiteralValue::Bool(_) => FieldType::Bool,
             LiteralValue::Ip(_) => FieldType::Ip,
             LiteralValue::Array(vals) => {
-                let ty = vals.get(0).map(|v| v.get_type()).unwrap_or(FieldType::Bytes);
-                FieldType::Array(Box::new(ty))
+                if vals.is_empty() {
+                    FieldType::Array(Box::new(FieldType::Unknown))
+                } else {
+                    let first_ty = vals[0].get_type();
+                    if vals.iter().all(|v| v.get_type() == first_ty) {
+                        FieldType::Array(Box::new(first_ty))
+                    } else {
+                        FieldType::Array(Box::new(FieldType::Unknown))
+                    }
+                }
             }
-            LiteralValue::Map(_) => FieldType::Map(Box::new(FieldType::Bytes)), // TODO: infer value type
+            LiteralValue::Map(map) => {
+                if map.is_empty() {
+                    FieldType::Map(Box::new(FieldType::Unknown))
+                } else {
+                    let mut iter = map.values();
+                    let first_ty = iter.next().map(|v| v.get_type());
+                    if let Some(first_ty) = first_ty {
+                        if iter.all(|v| v.get_type() == first_ty) {
+                            FieldType::Map(Box::new(first_ty))
+                        } else {
+                            FieldType::Map(Box::new(FieldType::Unknown))
+                        }
+                    } else {
+                        FieldType::Map(Box::new(FieldType::Unknown))
+                    }
+                }
+            }
         }
     }
 }
@@ -75,20 +100,20 @@ mod tests {
         let arr = LiteralValue::Array(vec![LiteralValue::Int(1), LiteralValue::Int(2)]);
         assert_eq!(arr.get_type(), FieldType::Array(Box::new(FieldType::Int)));
         let map = LiteralValue::Map(Default::default());
-        assert_eq!(map.get_type(), FieldType::Map(Box::new(FieldType::Bytes))); // TODO: improve value type inference
+        assert_eq!(map.get_type(), FieldType::Map(Box::new(FieldType::Unknown))); // Updated to match new logic
     }
 
     #[test]
     fn test_array_type_inference_empty() {
         let arr = LiteralValue::Array(vec![]);
         // Defaults to Bytes if empty
-        assert_eq!(arr.get_type(), FieldType::Array(Box::new(FieldType::Bytes)));
+        assert_eq!(arr.get_type(), FieldType::Array(Box::new(FieldType::Unknown)));
     }
 
     #[test]
     fn test_map_type_inference_empty() {
         let map = LiteralValue::Map(Default::default());
-        assert_eq!(map.get_type(), FieldType::Map(Box::new(FieldType::Bytes)));
+        assert_eq!(map.get_type(), FieldType::Map(Box::new(FieldType::Unknown)));
     }
 
     #[test]
