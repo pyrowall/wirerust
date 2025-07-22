@@ -7,10 +7,11 @@ use crate::expr::FilterExpr;
 use crate::context::FilterContext;
 use crate::schema::FilterSchema;
 use crate::functions::FunctionRegistry;
+use crate::WirerustError;
 
 pub struct CompiledFilter {
     schema: FilterSchema,
-    exec: Box<dyn Fn(&FilterContext) -> bool + Send + Sync>,
+    exec: Box<dyn Fn(&FilterContext) -> Result<bool, WirerustError> + Send + Sync>,
 }
 
 impl CompiledFilter {
@@ -19,7 +20,7 @@ impl CompiledFilter {
         Self { schema, exec }
     }
 
-    pub fn execute(&self, context: &FilterContext) -> bool {
+    pub fn execute(&self, context: &FilterContext) -> Result<bool, WirerustError> {
         (self.exec)(context)
     }
 
@@ -60,7 +61,7 @@ mod tests {
             right: Box::new(FilterExpr::Value(LiteralValue::Int(42))),
         };
         let filter = CompiledFilter::new(expr, schema(), FunctionRegistry::new());
-        assert!(filter.execute(&context()));
+        assert!(filter.execute(&context()).unwrap());
     }
 
     #[test]
@@ -71,7 +72,7 @@ mod tests {
             right: Box::new(FilterExpr::Value(LiteralValue::Int(0))),
         };
         let filter = CompiledFilter::new(expr, schema(), FunctionRegistry::new());
-        assert!(!filter.execute(&context()));
+        assert!(!filter.execute(&context()).unwrap());
     }
 
     #[test]

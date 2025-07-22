@@ -45,7 +45,7 @@ fn test_filter_matches() {
         &schema,
     ).unwrap();
 
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn test_filter_does_not_match() {
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(80), &schema).unwrap();
-    assert!(!filter.execute(&ctx));
+    assert!(!filter.execute(&ctx).unwrap());
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn test_filter_with_function_call() {
         &schema,
     ).unwrap();
 
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 // Regex matching tests - only run if regex feature is enabled
@@ -98,7 +98,7 @@ fn test_regex_matches() {
     let mut ctx = FilterContext::new();
     ctx.set("user_agent", LiteralValue::Bytes(b"Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0".to_vec()), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 #[cfg(feature = "regex")]
@@ -113,7 +113,7 @@ fn test_regex_does_not_match() {
     let mut ctx = FilterContext::new();
     ctx.set("user_agent", LiteralValue::Bytes(b"Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0".to_vec()), &schema).unwrap();
     
-    assert!(!filter.execute(&ctx));
+    assert!(!filter.execute(&ctx).unwrap());
 }
 
 #[cfg(feature = "regex")]
@@ -128,7 +128,7 @@ fn test_regex_with_simple_pattern() {
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 // IP address tests - note: parser doesn't support IP literals yet, so we test with string comparison
@@ -147,7 +147,7 @@ fn test_ip_address_equality() {
     
     // This will fail because the parser doesn't support IP literals yet
     // For now, we'll just test that the filter compiles and executes without panicking
-    let result = filter.execute(&ctx);
+    let _result = filter.execute(&ctx);
     // The result will be false because the comparison won't work as expected
     // This is expected behavior until IP literal parsing is implemented
 }
@@ -166,7 +166,7 @@ fn test_ip_address_in_set() {
     
     // This will fail because the parser doesn't support IP literals yet
     // For now, we'll just test that the filter compiles and executes without panicking
-    let result = filter.execute(&ctx);
+    let _result = filter.execute(&ctx);
     // The result will be false because the comparison won't work as expected
     // This is expected behavior until IP literal parsing is implemented
 }
@@ -183,7 +183,7 @@ fn test_boolean_true() {
     let mut ctx = FilterContext::new();
     ctx.set("enabled", LiteralValue::Bool(true), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 #[test]
@@ -197,7 +197,7 @@ fn test_boolean_false() {
     let mut ctx = FilterContext::new();
     ctx.set("enabled", LiteralValue::Bool(false), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 #[test]
@@ -211,7 +211,7 @@ fn test_boolean_not() {
     let mut ctx = FilterContext::new();
     ctx.set("enabled", LiteralValue::Bool(false), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 // Simple logical operations test
@@ -229,9 +229,9 @@ fn test_simple_logical_operations() {
     ctx.set("port", LiteralValue::Int(443), &schema).unwrap();
     
     let result = filter.execute(&ctx);
-    println!("Simple logical operations test result: {}", result);
+    println!("Simple logical operations test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
     println!("Context values: {:?}", ctx.values());
-    assert!(result);
+    assert!(result.as_ref().unwrap());
 }
 
 // Parenthesized expression test
@@ -249,9 +249,9 @@ fn test_parenthesized_expression() {
     ctx.set("port", LiteralValue::Int(443), &schema).unwrap();
     
     let result = filter.execute(&ctx);
-    println!("Parenthesized expression test result: {}", result);
+    println!("Parenthesized expression test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
     println!("Context values: {:?}", ctx.values());
-    assert!(result);
+    assert!(result.as_ref().unwrap());
 }
 
 // OR expression test
@@ -268,9 +268,9 @@ fn test_or_expression() {
     ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
     
     let result = filter.execute(&ctx);
-    println!("OR expression test result: {}", result);
+    println!("OR expression test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
     println!("Context values: {:?}", ctx.values());
-    assert!(result);
+    assert!(result.as_ref().unwrap());
 }
 
 // Mixed AND/OR expression test
@@ -288,9 +288,9 @@ fn test_mixed_and_or_expression() {
     ctx.set("port", LiteralValue::Int(443), &schema).unwrap();
     
     let result = filter.execute(&ctx);
-    println!("Mixed AND/OR expression test result: {}", result);
+    println!("Mixed AND/OR expression test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
     println!("Context values: {:?}", ctx.values());
-    assert!(result);
+    assert!(result.as_ref().unwrap());
 }
 
 // Test with enabled field
@@ -307,9 +307,9 @@ fn test_with_enabled_field() {
     ctx.set("enabled", LiteralValue::Bool(true), &schema).unwrap();
     
     let result = filter.execute(&ctx);
-    println!("Enabled field test result: {}", result);
+    println!("Enabled field test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
     println!("Context values: {:?}", ctx.values());
-    assert!(result);
+    assert!(result.as_ref().unwrap());
 }
 
 // Test with len function
@@ -329,9 +329,9 @@ fn test_with_len_function() {
     ]), &schema).unwrap();
     
     let result = filter.execute(&ctx);
-    println!("Len function test result: {}", result);
+    println!("Len function test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
     println!("Context values: {:?}", ctx.values());
-    assert!(result);
+    assert!(result.as_ref().unwrap());
 }
 
 // Complex logical operations
@@ -350,9 +350,9 @@ fn test_complex_logical_operations() {
     ctx.set("enabled", LiteralValue::Bool(true), &schema).unwrap();
     
     let result = filter.execute(&ctx);
-    println!("Complex logical operations test result: {}", result);
+    println!("Complex logical operations test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
     println!("Context values: {:?}", ctx.values());
-    assert!(result);
+    assert!(result.as_ref().unwrap());
 }
 
 #[test]
@@ -367,7 +367,7 @@ fn test_nested_parentheses() {
     ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(8080), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 // Comparison operators
@@ -383,7 +383,7 @@ fn test_numeric_comparisons() {
     ctx.set("status_code", LiteralValue::Int(200), &schema).unwrap();
     ctx.set("request_size", LiteralValue::Int(1500), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 #[test]
@@ -397,7 +397,7 @@ fn test_not_in_operator() {
     let mut ctx = FilterContext::new();
     ctx.set("port", LiteralValue::Int(80), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 // Function call tests
@@ -416,7 +416,7 @@ fn test_sum_function() {
         LiteralValue::Int(70),
     ]), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 #[test]
@@ -439,7 +439,7 @@ fn test_multiple_function_calls() {
         LiteralValue::Int(60),
     ]), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 // Edge cases and error conditions
@@ -454,7 +454,7 @@ fn test_empty_array() {
     let mut ctx = FilterContext::new();
     ctx.set("tags", LiteralValue::Array(vec![]), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 #[test]
@@ -467,7 +467,7 @@ fn test_missing_field_returns_false() {
 
     let ctx = FilterContext::new(); // Empty context
     
-    assert!(!filter.execute(&ctx));
+    assert!(!filter.execute(&ctx).unwrap());
 }
 
 #[test]
@@ -483,7 +483,7 @@ fn test_unknown_function_returns_false() {
         LiteralValue::Bytes(b"tag1".to_vec()),
     ]), &schema).unwrap();
     
-    assert!(!filter.execute(&ctx));
+    assert!(matches!(filter.execute(&ctx), Err(WirerustError::FunctionError(_))));
 }
 
 // String operations
@@ -498,7 +498,7 @@ fn test_string_inequality() {
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 #[test]
@@ -512,7 +512,7 @@ fn test_case_insensitive_comparison() {
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"get".to_vec()), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 // Performance and response time tests
@@ -527,7 +527,7 @@ fn test_response_time_threshold() {
     let mut ctx = FilterContext::new();
     ctx.set("response_time", LiteralValue::Int(2500), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 // Complex real-world scenario
@@ -559,9 +559,9 @@ fn test_complex_web_request_filter() {
     ]), &schema).unwrap();
     
     let result = filter.execute(&ctx);
-    println!("Complex web request filter test result: {}", result);
+    println!("Complex web request filter test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
     println!("Context values: {:?}", ctx.values());
-    assert!(result);
+    assert!(result.as_ref().unwrap());
 }
 
 // Error handling tests
@@ -578,7 +578,7 @@ fn test_invalid_regex_pattern() {
     ctx.set("user_agent", LiteralValue::Bytes(b"test".to_vec()), &schema).unwrap();
     
     // Should match any string
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 }
 
 #[test]
@@ -593,7 +593,7 @@ fn test_type_mismatch_in_comparison() {
     ctx.set("port", LiteralValue::Int(80), &schema).unwrap();
     
     // Should handle type mismatch gracefully and return false
-    assert!(!filter.execute(&ctx));
+    assert!(!filter.execute(&ctx).unwrap());
 }
 
 // Boundary value tests
@@ -609,14 +609,14 @@ fn test_boundary_values() {
     ctx.set("status_code", LiteralValue::Int(0), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(1), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
     
     // Test upper boundary
     let mut ctx2 = FilterContext::new();
     ctx2.set("status_code", LiteralValue::Int(999), &schema).unwrap();
     ctx2.set("port", LiteralValue::Int(65535), &schema).unwrap();
     
-    assert!(filter.execute(&ctx2));
+    assert!(filter.execute(&ctx2).unwrap());
 }
 
 // Multiple conditions with different operators
@@ -634,5 +634,5 @@ fn test_mixed_operators() {
     ctx.set("status_code", LiteralValue::Int(201), &schema).unwrap();
     ctx.set("response_time", LiteralValue::Int(500), &schema).unwrap();
     
-    assert!(filter.execute(&ctx));
+    assert!(filter.execute(&ctx).unwrap());
 } 

@@ -54,5 +54,3 @@ impl fmt::Display for WirerustError {
 }
 
 impl std::error::Error for WirerustError {}
-
-// TODO: Update all modules to use Result<T, WirerustError> for public APIs.

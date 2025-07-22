@@ -32,6 +32,9 @@ fn main() -> Result<(), WirerustError> {
 
     // 6. Execute filter
     let result = filter.execute(&ctx);
-    println!("Filter matches: {}", result);
+    match result {
+        Ok(val) => println!("Filter matches: {}", val),
+        Err(e) => println!("Filter error: {}", e),
+    }
     Ok(())
 } 

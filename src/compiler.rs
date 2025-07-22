@@ -7,18 +7,19 @@ use crate::context::FilterContext;
 use crate::schema::FilterSchema;
 use crate::types::LiteralValue;
 use crate::functions::FunctionRegistry;
+use crate::WirerustError;
 
 pub struct DefaultCompiler;
 
 impl DefaultCompiler {
-    pub fn compile(expr: FilterExpr, schema: FilterSchema, functions: FunctionRegistry) -> Box<dyn Fn(&FilterContext) -> bool + Send + Sync + 'static> {
+    pub fn compile(expr: FilterExpr, schema: FilterSchema, functions: FunctionRegistry) -> Box<dyn Fn(&FilterContext) -> Result<bool, WirerustError> + Send + Sync + 'static> {
         match expr {
             FilterExpr::LogicalOp { op, left, right } => {
                 let l = DefaultCompiler::compile(*left.clone(), schema.clone(), functions.clone());
                 let r = DefaultCompiler::compile(*right.clone(), schema.clone(), functions.clone());
                 match op {
-                    LogicalOp::And => Box::new(move |ctx| l(ctx) && r(ctx)),
-                    LogicalOp::Or => Box::new(move |ctx| l(ctx) || r(ctx)),
+                    LogicalOp::And => Box::new(move |ctx| Ok(l(ctx)? && r(ctx)?)),
+                    LogicalOp::Or => Box::new(move |ctx| Ok(l(ctx)? || r(ctx)?)),
                 }
             }
             FilterExpr::Comparison { left, op, right } => {
@@ -28,7 +29,7 @@ impl DefaultCompiler {
                 Box::new(move |ctx| {
                     let lval = eval_expr(&left, ctx, &functions);
                     let rval = eval_expr(&right, ctx, &functions);
-                    match op {
+                    let result = match op {
                         ComparisonOp::Eq => lval == rval,
                         ComparisonOp::Neq => lval != rval,
                         ComparisonOp::Lt => cmp_ord(&lval, &rval, |a, b| a < b),
@@ -38,27 +39,28 @@ impl DefaultCompiler {
                         ComparisonOp::In => cmp_in(&lval, &rval),
                         ComparisonOp::NotIn => !cmp_in(&lval, &rval),
                         ComparisonOp::Matches => cmp_matches(&lval, &rval),
-                    }
+                    };
+                    Ok(result)
                 })
             }
             FilterExpr::Not(inner) => {
                 let inner_fn = DefaultCompiler::compile(*inner.clone(), schema.clone(), functions.clone());
-                Box::new(move |ctx| !inner_fn(ctx))
+                Box::new(move |ctx| Ok(!inner_fn(ctx)?))
             }
             FilterExpr::Value(val) => {
                 let val = val.clone();
                 let functions = functions.clone();
                 Box::new(move |ctx| {
                     let result = eval_expr(&FilterExpr::Value(val.clone()), ctx, &functions);
-                    // Convert the result to boolean
-                    match result {
+                    let b = match result {
                         LiteralValue::Bool(b) => b,
                         LiteralValue::Int(i) => i != 0,
-                        LiteralValue::Bytes(_) => true, // Non-empty string/bytes are truthy
-                        LiteralValue::Array(arr) => !arr.is_empty(), // Non-empty arrays are truthy
-                        LiteralValue::Ip(_) => true, // IP addresses are truthy
-                        LiteralValue::Map(map) => !map.is_empty(), // Non-empty maps are truthy
-                    }
+                        LiteralValue::Bytes(_) => true,
+                        LiteralValue::Array(arr) => !arr.is_empty(),
+                        LiteralValue::Ip(_) => true,
+                        LiteralValue::Map(map) => !map.is_empty(),
+                    };
+                    Ok(b)
                 })
             }
             FilterExpr::FunctionCall { name, args } => {
@@ -70,13 +72,13 @@ impl DefaultCompiler {
                     if let Some(func) = func {
                         let arg_vals: Vec<_> = arg_exprs.iter().map(|e| eval_expr(e, ctx, &functions)).collect();
                         let result = func.call(&arg_vals).unwrap_or(LiteralValue::Bool(false));
-                        matches!(result, LiteralValue::Bool(true))
+                        Ok(matches!(result, LiteralValue::Bool(true)))
                     } else {
-                        false
+                        Err(WirerustError::FunctionError(format!("Function '{}' not found", name)))
                     }
                 })
             }
-            FilterExpr::List(_) => Box::new(|_| false), // Not meaningful at top level
+            FilterExpr::List(_) => Box::new(|_| Ok(false)),
         }
     }
 }
@@ -188,7 +190,7 @@ mod tests {
             right: Box::new(FilterExpr::Value(LiteralValue::Int(42))),
         };
         let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
-        assert!(filter(&context()));
+        assert!(filter(&context()).unwrap());
     }
 
     #[test]
@@ -207,7 +209,7 @@ mod tests {
             }),
         };
         let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
-        assert!(filter(&context()));
+        assert!(filter(&context()).unwrap());
     }
 
     #[test]
@@ -218,7 +220,7 @@ mod tests {
             right: Box::new(FilterExpr::Value(LiteralValue::Int(0))),
         }));
         let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
-        assert!(filter(&context()));
+        assert!(filter(&context()).unwrap());
     }
 
     #[test]
@@ -229,7 +231,7 @@ mod tests {
             right: Box::new(FilterExpr::Value(LiteralValue::Array(vec![LiteralValue::Int(1), LiteralValue::Int(42)]))),
         };
         let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
-        assert!(filter(&context()));
+        assert!(filter(&context()).unwrap());
     }
 
     #[test]
@@ -242,7 +244,7 @@ mod tests {
         };
         let filter = DefaultCompiler::compile(expr, schema(), functions);
         // len([1,2]) returns Int(2), but top-level expects Bool, so should be false
-        assert!(!filter(&context()));
+        assert!(!filter(&context()).unwrap());
     }
 
     #[test]
@@ -253,7 +255,7 @@ mod tests {
             right: Box::new(FilterExpr::Value(LiteralValue::Int(1))),
         };
         let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
-        assert!(!filter(&context()));
+        assert!(!filter(&context()).unwrap());
     }
 
     #[test]
@@ -264,6 +266,6 @@ mod tests {
             right: Box::new(FilterExpr::Value(LiteralValue::Bytes(b"not an int".to_vec()))),
         };
         let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
-        assert!(!filter(&context()));
+        assert!(!filter(&context()).unwrap());
     }
 } 
