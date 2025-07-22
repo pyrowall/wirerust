@@ -48,6 +48,7 @@ pub enum ComparisonOp {
     Matches, // for regex
     Wildcard, // case-insensitive wildcard
     StrictWildcard, // case-sensitive wildcard
+    Contains, // substring or element containment
 }
 
 // Visitor trait for traversing the AST
@@ -259,6 +260,7 @@ impl<'a> FilterParser<'a> {
             ("matches", ComparisonOp::Matches),
             ("wildcard", ComparisonOp::Wildcard),
             ("strict wildcard", ComparisonOp::StrictWildcard),
+            ("contains", ComparisonOp::Contains),
         ];
         self.skip_whitespace();
         for (s, op) in ops.iter() {
@@ -532,6 +534,16 @@ mod tests {
         match swc {
             FilterExpr::Comparison { op, .. } => assert_eq!(op, ComparisonOp::StrictWildcard),
             _ => panic!("Expected strict wildcard comparison"),
+        }
+    }
+
+    #[test]
+    fn test_parse_contains_operator() {
+        let sch = schema();
+        let expr = FilterParser::parse("bar contains \"foo\"", &sch).unwrap();
+        match expr {
+            FilterExpr::Comparison { op, .. } => assert_eq!(op, ComparisonOp::Contains),
+            _ => panic!("Expected contains comparison"),
         }
     }
 } 

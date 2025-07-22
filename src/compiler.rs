@@ -41,6 +41,7 @@ impl DefaultCompiler {
                         ComparisonOp::Matches => cmp_matches(&lval, &rval),
                         ComparisonOp::Wildcard => cmp_wildcard(&lval, &rval, false),
                         ComparisonOp::StrictWildcard => cmp_wildcard(&lval, &rval, true),
+                        ComparisonOp::Contains => cmp_contains(&lval, &rval),
                     };
                     Ok(result)
                 })
@@ -209,6 +210,21 @@ fn wildcard_match_bytes(s: &[u8], pat: &[u8]) -> bool {
     }
 }
 
+// Helper for contains comparison
+fn cmp_contains(a: &LiteralValue, b: &LiteralValue) -> bool {
+    match (a, b) {
+        (LiteralValue::Bytes(haystack), LiteralValue::Bytes(needle)) => {
+            if let (Ok(h), Ok(n)) = (std::str::from_utf8(haystack), std::str::from_utf8(needle)) {
+                h.contains(n)
+            } else {
+                false
+            }
+        }
+        (LiteralValue::Array(arr), val) => arr.contains(val),
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,6 +233,7 @@ mod tests {
     use crate::context::FilterContext;
     use crate::expr::{FilterExpr, ComparisonOp, LogicalOp};
     use crate::functions::{FunctionRegistry, LenFunction};
+    use crate::expr::FilterParser;
 
     fn schema() -> FilterSchema {
         FilterSchemaBuilder::new()
@@ -323,32 +340,77 @@ mod tests {
     }
 
     #[test]
+    fn test_compile_and_execute_contains_string() {
+        let expr = FilterParser::parse("bar contains \"oba\"", &schema()).unwrap();
+        let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
+        let mut ctx = context();
+        ctx.set("bar", LiteralValue::Bytes(b"foobar".to_vec()), &schema()).unwrap();
+        assert!(filter(&ctx).unwrap());
+        ctx.set("bar", LiteralValue::Bytes(b"baz".to_vec()), &schema()).unwrap();
+        assert!(!filter(&ctx).unwrap());
+        ctx.set("bar", LiteralValue::Bytes(b"oba".to_vec()), &schema()).unwrap();
+        assert!(filter(&ctx).unwrap());
+        ctx.set("bar", LiteralValue::Bytes(b"".to_vec()), &schema()).unwrap();
+        assert!(!filter(&ctx).unwrap());
+        ctx.set("bar", LiteralValue::Bytes(b"foobaroba".to_vec()), &schema()).unwrap();
+        assert!(filter(&ctx).unwrap());
+    }
+
+    #[test]
+    fn test_compile_and_execute_contains_array() {
+        let expr = FilterParser::parse("arr contains 2", &schema()).unwrap();
+        let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
+        let mut ctx = context();
+        ctx.set("arr", LiteralValue::Array(vec![
+            LiteralValue::Int(1),
+            LiteralValue::Int(2),
+            LiteralValue::Int(3),
+        ]), &schema()).unwrap();
+        assert!(filter(&ctx).unwrap());
+        ctx.set("arr", LiteralValue::Array(vec![
+            LiteralValue::Int(4),
+            LiteralValue::Int(5),
+        ]), &schema()).unwrap();
+        assert!(!filter(&ctx).unwrap());
+        ctx.set("arr", LiteralValue::Array(vec![]), &schema()).unwrap();
+        assert!(!filter(&ctx).unwrap());
+        ctx.set("arr", LiteralValue::Array(vec![
+            LiteralValue::Int(2),
+        ]), &schema()).unwrap();
+        assert!(filter(&ctx).unwrap());
+    }
+
+    #[test]
     fn test_compile_and_execute_wildcard() {
-        let expr = FilterExpr::Comparison {
-            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(b"bar".to_vec()))),
-            op: ComparisonOp::Wildcard,
-            right: Box::new(FilterExpr::Value(LiteralValue::Bytes(b"b*r".to_vec()))),
-        };
+        let expr = FilterParser::parse("bar wildcard \"b*r\"", &schema()).unwrap();
         let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
         let mut ctx = context();
         ctx.set("bar", LiteralValue::Bytes(b"bar".to_vec()), &schema()).unwrap();
         assert!(filter(&ctx).unwrap());
         ctx.set("bar", LiteralValue::Bytes(b"BAR".to_vec()), &schema()).unwrap();
         assert!(filter(&ctx).unwrap()); // case-insensitive
+        ctx.set("bar", LiteralValue::Bytes(b"bxxr".to_vec()), &schema()).unwrap();
+        assert!(filter(&ctx).unwrap());
+        ctx.set("bar", LiteralValue::Bytes(b"bxxz".to_vec()), &schema()).unwrap();
+        assert!(!filter(&ctx).unwrap());
+        ctx.set("bar", LiteralValue::Bytes(b"foo".to_vec()), &schema()).unwrap();
+        assert!(!filter(&ctx).unwrap());
     }
 
     #[test]
     fn test_compile_and_execute_strict_wildcard() {
-        let expr = FilterExpr::Comparison {
-            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(b"bar".to_vec()))),
-            op: ComparisonOp::StrictWildcard,
-            right: Box::new(FilterExpr::Value(LiteralValue::Bytes(b"b*r".to_vec()))),
-        };
+        let expr = FilterParser::parse("bar strict wildcard \"b*r\"", &schema()).unwrap();
         let filter = DefaultCompiler::compile(expr, schema(), FunctionRegistry::new());
         let mut ctx = context();
         ctx.set("bar", LiteralValue::Bytes(b"bar".to_vec()), &schema()).unwrap();
         assert!(filter(&ctx).unwrap());
         ctx.set("bar", LiteralValue::Bytes(b"BAR".to_vec()), &schema()).unwrap();
         assert!(!filter(&ctx).unwrap()); // case-sensitive
+        ctx.set("bar", LiteralValue::Bytes(b"bxxr".to_vec()), &schema()).unwrap();
+        assert!(filter(&ctx).unwrap());
+        ctx.set("bar", LiteralValue::Bytes(b"bxxz".to_vec()), &schema()).unwrap();
+        assert!(!filter(&ctx).unwrap());
+        ctx.set("bar", LiteralValue::Bytes(b"foo".to_vec()), &schema()).unwrap();
+        assert!(!filter(&ctx).unwrap());
     }
 } 
