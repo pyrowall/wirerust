@@ -8,10 +8,45 @@ use crate::schema::FilterSchema;
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use crate::WirerustError;
+use std::net::IpAddr;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FilterContext {
     values: HashMap<String, LiteralValue>,
+}
+
+pub struct FilterContextBuilder<'a> {
+    ctx: FilterContext,
+    schema: &'a FilterSchema,
+}
+
+impl<'a> FilterContextBuilder<'a> {
+    pub fn new(schema: &'a FilterSchema) -> Self {
+        Self { ctx: FilterContext::new(), schema }
+    }
+    pub fn set_int(mut self, field: &str, value: i64) -> Self {
+        self.ctx.set(field, LiteralValue::Int(value), self.schema).unwrap();
+        self
+    }
+    pub fn set_bytes(mut self, field: &str, value: impl AsRef<[u8]>) -> Self {
+        self.ctx.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), self.schema).unwrap();
+        self
+    }
+    pub fn set_bool(mut self, field: &str, value: bool) -> Self {
+        self.ctx.set(field, LiteralValue::Bool(value), self.schema).unwrap();
+        self
+    }
+    pub fn set_ip(mut self, field: &str, value: IpAddr) -> Self {
+        self.ctx.set(field, LiteralValue::Ip(value), self.schema).unwrap();
+        self
+    }
+    pub fn set_array(mut self, field: &str, value: Vec<LiteralValue>) -> Self {
+        self.ctx.set(field, LiteralValue::Array(value), self.schema).unwrap();
+        self
+    }
+    pub fn build(self) -> FilterContext {
+        self.ctx
+    }
 }
 
 impl FilterContext {
@@ -50,6 +85,43 @@ impl FilterContext {
     pub fn values(&self) -> &HashMap<String, LiteralValue> {
         &self.values
     }
+
+    pub fn set_int(&mut self, field: &str, value: i64, schema: &FilterSchema) -> Result<(), WirerustError> {
+        self.set(field, LiteralValue::Int(value), schema)
+    }
+    pub fn set_bytes(&mut self, field: &str, value: impl AsRef<[u8]>, schema: &FilterSchema) -> Result<(), WirerustError> {
+        self.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), schema)
+    }
+    pub fn set_bool(&mut self, field: &str, value: bool, schema: &FilterSchema) -> Result<(), WirerustError> {
+        self.set(field, LiteralValue::Bool(value), schema)
+    }
+    pub fn set_ip(&mut self, field: &str, value: IpAddr, schema: &FilterSchema) -> Result<(), WirerustError> {
+        self.set(field, LiteralValue::Ip(value), schema)
+    }
+    pub fn get_int(&self, field: &str) -> Option<i64> {
+        match self.get(field) {
+            Some(LiteralValue::Int(i)) => Some(*i),
+            _ => None,
+        }
+    }
+    pub fn get_bytes(&self, field: &str) -> Option<&[u8]> {
+        match self.get(field) {
+            Some(LiteralValue::Bytes(b)) => Some(b),
+            _ => None,
+        }
+    }
+    pub fn get_bool(&self, field: &str) -> Option<bool> {
+        match self.get(field) {
+            Some(LiteralValue::Bool(b)) => Some(*b),
+            _ => None,
+        }
+    }
+    pub fn get_ip(&self, field: &str) -> Option<IpAddr> {
+        match self.get(field) {
+            Some(LiteralValue::Ip(ip)) => Some(*ip),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -58,13 +130,50 @@ mod tests {
     use crate::types::{FieldType, LiteralValue};
     use crate::schema::FilterSchemaBuilder;
     use serde_json;
+    use std::net::IpAddr;
+    use std::str::FromStr;
 
     fn schema() -> FilterSchema {
         FilterSchemaBuilder::new()
             .field("foo", FieldType::Int)
             .field("bar", FieldType::Bytes)
             .field("arr", FieldType::Array(Box::new(FieldType::Int)))
+            .field("flag", FieldType::Bool)
+            .field("ip", FieldType::Ip)
             .build()
+    }
+
+    #[test]
+    fn test_context_builder_and_typed_setters() {
+        let sch = schema();
+        let ip = IpAddr::from_str("127.0.0.1").unwrap();
+        let ctx = FilterContextBuilder::new(&sch)
+            .set_int("foo", 42)
+            .set_bytes("bar", b"baz")
+            .set_bool("flag", true)
+            .set_ip("ip", ip)
+            .set_array("arr", vec![LiteralValue::Int(1), LiteralValue::Int(2)])
+            .build();
+        assert_eq!(ctx.get_int("foo"), Some(42));
+        assert_eq!(ctx.get_bytes("bar"), Some(&b"baz"[..]));
+        assert_eq!(ctx.get_bool("flag"), Some(true));
+        assert_eq!(ctx.get_ip("ip"), Some(ip));
+        assert_eq!(ctx.get("arr"), Some(&LiteralValue::Array(vec![LiteralValue::Int(1), LiteralValue::Int(2)])));
+    }
+
+    #[test]
+    fn test_typed_setters_and_getters() {
+        let sch = schema();
+        let mut ctx = FilterContext::new();
+        let ip = IpAddr::from_str("192.168.1.1").unwrap();
+        ctx.set_int("foo", 123, &sch).unwrap();
+        ctx.set_bytes("bar", b"abc", &sch).unwrap();
+        ctx.set_bool("flag", false, &sch).unwrap();
+        ctx.set_ip("ip", ip, &sch).unwrap();
+        assert_eq!(ctx.get_int("foo"), Some(123));
+        assert_eq!(ctx.get_bytes("bar"), Some(&b"abc"[..]));
+        assert_eq!(ctx.get_bool("flag"), Some(false));
+        assert_eq!(ctx.get_ip("ip"), Some(ip));
     }
 
     #[test]
