@@ -24,63 +24,68 @@ impl<'a> FilterContextBuilder<'a> {
     pub fn new(schema: &'a FilterSchema) -> Self {
         Self { ctx: FilterContext::new(), schema }
     }
-    pub fn set_int(mut self, field: &str, value: i64) -> Result<Self, WirerustError> {
-        self.ctx.set(field, LiteralValue::Int(value), self.schema)?;
-        Ok(self)
-    }
-    pub fn set_bytes(mut self, field: &str, value: impl AsRef<[u8]>) -> Result<Self, WirerustError> {
-        self.ctx.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), self.schema)?;
-        Ok(self)
-    }
-    pub fn set_bool(mut self, field: &str, value: bool) -> Result<Self, WirerustError> {
-        self.ctx.set(field, LiteralValue::Bool(value), self.schema)?;
-        Ok(self)
-    }
-    pub fn set_ip(mut self, field: &str, value: IpAddr) -> Result<Self, WirerustError> {
-        self.ctx.set(field, LiteralValue::Ip(value), self.schema)?;
-        Ok(self)
-    }
-    pub fn set_array(mut self, field: &str, value: Vec<LiteralValue>) -> Result<Self, WirerustError> {
-        self.ctx.set(field, LiteralValue::Array(value), self.schema)?;
-        Ok(self)
-    }
     pub fn build(self) -> FilterContext {
         self.ctx
     }
 }
 
-macro_rules! context_setter {
-    ($name:ident, $variant:ident, $ty:ty) => {
-        pub fn $name(&mut self, field: &str, value: $ty, schema: &FilterSchema) -> &mut Self {
-            let _ = self.set(field, LiteralValue::$variant(value), schema);
-            self
+/// Macro to generate both builder and context setters for a given type.
+macro_rules! define_setters_and_getters {
+    // For types with owned value
+    ($(($set_name:ident, $builder_set:ident, $variant:ident, $ty:ty, $get_name:ident)),* $(,)?) => {
+        impl<'a> FilterContextBuilder<'a> {
+            $(
+            pub fn $builder_set(mut self, field: &str, value: $ty) -> Result<Self, WirerustError> {
+                self.ctx.$set_name(field, value, self.schema);
+                Ok(self)
+            }
+            )*
+        }
+        impl FilterContext {
+            $(
+            pub fn $set_name(&mut self, field: &str, value: $ty, schema: &FilterSchema) -> &mut Self {
+                let _ = self.set(field, LiteralValue::$variant(value), schema);
+                self
+            }
+            pub fn $get_name(&self, field: &str) -> Option<$ty> {
+                match self.get(field) {
+                    Some(&LiteralValue::$variant(ref v)) => Some(v.clone()),
+                    _ => None,
+                }
+            }
+            )*
         }
     };
+    // Special case for bytes
     (bytes) => {
-        pub fn set_bytes<T: AsRef<[u8]>>(&mut self, field: &str, value: T, schema: &FilterSchema) -> &mut Self {
-            let _ = self.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), schema);
-            self
+        impl<'a> FilterContextBuilder<'a> {
+            pub fn set_bytes(mut self, field: &str, value: impl AsRef<[u8]>) -> Result<Self, WirerustError> {
+                self.ctx.set_bytes(field, value, self.schema);
+                Ok(self)
+            }
         }
-    };
-}
-macro_rules! context_getter {
-    ($name:ident, $variant:ident, $ty:ty) => {
-        pub fn $name(&self, field: &str) -> Option<$ty> {
-            match self.get(field) {
-                Some(&LiteralValue::$variant(ref v)) => Some(v.clone()),
-                _ => None,
+        impl FilterContext {
+            pub fn set_bytes<T: AsRef<[u8]>>(&mut self, field: &str, value: T, schema: &FilterSchema) -> &mut Self {
+                let _ = self.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), schema);
+                self
+            }
+            pub fn get_bytes(&self, field: &str) -> Option<&[u8]> {
+                match self.get(field) {
+                    Some(&LiteralValue::Bytes(ref b)) => Some(&b[..]),
+                    _ => None,
+                }
             }
         }
     };
-    (bytes) => {
-        pub fn get_bytes(&self, field: &str) -> Option<&[u8]> {
-            match self.get(field) {
-                Some(&LiteralValue::Bytes(ref b)) => Some(&b[..]),
-                _ => None,
-            }
-        }
-    };
 }
+
+define_setters_and_getters! {
+    (set_int, set_int, Int, i64, get_int),
+    (set_bool, set_bool, Bool, bool, get_bool),
+    (set_ip, set_ip, Ip, IpAddr, get_ip),
+    (set_array, set_array, Array, Vec<LiteralValue>, get_array),
+}
+define_setters_and_getters!(bytes);
 
 impl FilterContext {
     pub fn new() -> Self {
@@ -118,17 +123,6 @@ impl FilterContext {
     pub fn values(&self) -> &HashMap<String, LiteralValue> {
         &self.values
     }
-
-    context_setter!(set_int, Int, i64);
-    context_setter!(bytes);
-    context_setter!(set_bool, Bool, bool);
-    context_setter!(set_ip, Ip, IpAddr);
-    context_setter!(set_array, Array, Vec<LiteralValue>);
-    context_getter!(get_int, Int, i64);
-    context_getter!(bytes);
-    context_getter!(get_bool, Bool, bool);
-    context_getter!(get_ip, Ip, IpAddr);
-    context_getter!(get_array, Array, Vec<LiteralValue>);
 }
 
 #[cfg(test)]
