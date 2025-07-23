@@ -98,8 +98,8 @@ mod tests {
         let engine = WirerustEngine::new(schema);
         let filter = engine.parse_and_compile("foo == 42 && bar == \"baz\"").unwrap();
         let ctx = FilterContextBuilder::new(&engine.schema)
-            .set_int("foo", 42)
-            .set_bytes("bar", b"baz")
+            .set_int("foo", 42).unwrap()
+            .set_bytes("bar", b"baz").unwrap()
             .build();
         let result = engine.execute(&filter, &ctx).unwrap();
         assert!(result);

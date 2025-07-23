@@ -24,25 +24,25 @@ impl<'a> FilterContextBuilder<'a> {
     pub fn new(schema: &'a FilterSchema) -> Self {
         Self { ctx: FilterContext::new(), schema }
     }
-    pub fn set_int(mut self, field: &str, value: i64) -> Self {
-        self.ctx.set(field, LiteralValue::Int(value), self.schema).unwrap();
-        self
+    pub fn set_int(mut self, field: &str, value: i64) -> Result<Self, WirerustError> {
+        self.ctx.set(field, LiteralValue::Int(value), self.schema)?;
+        Ok(self)
     }
-    pub fn set_bytes(mut self, field: &str, value: impl AsRef<[u8]>) -> Self {
-        self.ctx.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), self.schema).unwrap();
-        self
+    pub fn set_bytes(mut self, field: &str, value: impl AsRef<[u8]>) -> Result<Self, WirerustError> {
+        self.ctx.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), self.schema)?;
+        Ok(self)
     }
-    pub fn set_bool(mut self, field: &str, value: bool) -> Self {
-        self.ctx.set(field, LiteralValue::Bool(value), self.schema).unwrap();
-        self
+    pub fn set_bool(mut self, field: &str, value: bool) -> Result<Self, WirerustError> {
+        self.ctx.set(field, LiteralValue::Bool(value), self.schema)?;
+        Ok(self)
     }
-    pub fn set_ip(mut self, field: &str, value: IpAddr) -> Self {
-        self.ctx.set(field, LiteralValue::Ip(value), self.schema).unwrap();
-        self
+    pub fn set_ip(mut self, field: &str, value: IpAddr) -> Result<Self, WirerustError> {
+        self.ctx.set(field, LiteralValue::Ip(value), self.schema)?;
+        Ok(self)
     }
-    pub fn set_array(mut self, field: &str, value: Vec<LiteralValue>) -> Self {
-        self.ctx.set(field, LiteralValue::Array(value), self.schema).unwrap();
-        self
+    pub fn set_array(mut self, field: &str, value: Vec<LiteralValue>) -> Result<Self, WirerustError> {
+        self.ctx.set(field, LiteralValue::Array(value), self.schema)?;
+        Ok(self)
     }
     pub fn build(self) -> FilterContext {
         self.ctx
@@ -53,6 +53,11 @@ macro_rules! context_setter {
     ($name:ident, $variant:ident, $ty:ty) => {
         pub fn $name(&mut self, field: &str, value: $ty, schema: &FilterSchema) -> Result<(), WirerustError> {
             self.set(field, LiteralValue::$variant(value), schema)
+        }
+    };
+    (bytes) => {
+        pub fn set_bytes<T: AsRef<[u8]>>(&mut self, field: &str, value: T, schema: &FilterSchema) -> Result<(), WirerustError> {
+            self.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), schema)
         }
     };
 }
@@ -113,9 +118,7 @@ impl FilterContext {
     }
 
     context_setter!(set_int, Int, i64);
-    pub fn set_bytes(&mut self, field: &str, value: impl AsRef<[u8]>, schema: &FilterSchema) -> Result<(), WirerustError> {
-        self.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), schema)
-    }
+    context_setter!(bytes);
     context_setter!(set_bool, Bool, bool);
     context_setter!(set_ip, Ip, IpAddr);
     context_setter!(set_array, Array, Vec<LiteralValue>);
@@ -150,11 +153,11 @@ mod tests {
         let sch = schema();
         let ip = IpAddr::from_str("127.0.0.1").unwrap();
         let ctx = FilterContextBuilder::new(&sch)
-            .set_int("foo", 42)
-            .set_bytes("bar", b"baz")
-            .set_bool("flag", true)
-            .set_ip("ip", ip)
-            .set_array("arr", vec![LiteralValue::Int(1), LiteralValue::Int(2)])
+            .set_int("foo", 42).unwrap()
+            .set_bytes("bar", b"baz").unwrap()
+            .set_bool("flag", true).unwrap()
+            .set_ip("ip", ip).unwrap()
+            .set_array("arr", vec![LiteralValue::Int(1), LiteralValue::Int(2)]).unwrap()
             .build();
         assert_eq!(ctx.get_int("foo"), Some(42));
         assert_eq!(ctx.get_bytes("bar"), Some(&b"baz"[..]));

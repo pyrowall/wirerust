@@ -1,5 +1,11 @@
 # Wirerust
 
+⚠️ Problems and Areas to Improve
+
+- **Type inference for arrays/maps is simplistic**: Empty arrays default to `Unknown`, which may cause runtime surprises.
+- **Error handling**: Some `unwrap()`s in context and builder code; parser errors could be more informative.
+- **Redundancy**: Some code (e.g., context setters/getters) could be DRYed up further with macros or traits.
+
 A modular, embeddable filter engine for structured data, inspired by Cloudflare's wirefilter but redesigned for general-purpose use, extensibility, and modern Rust idioms.
 
 ## Features

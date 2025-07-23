@@ -36,7 +36,15 @@ impl FieldType {
 }
 
 impl LiteralValue {
+    /// Infers the type of this literal value.
+    /// For arrays/maps, if empty, returns Array(Unknown)/Map(Unknown) unless a hint is provided.
     pub fn get_type(&self) -> FieldType {
+        self.get_type_with_hint(None)
+    }
+
+    /// Infers the type of this literal value, using a type hint for empty arrays/maps.
+    /// If hint is Some(Array(T)), then empty arrays will be typed as Array(T) instead of Array(Unknown).
+    pub fn get_type_with_hint(&self, hint: Option<&FieldType>) -> FieldType {
         match self {
             LiteralValue::Bytes(_) => FieldType::Bytes,
             LiteralValue::Int(_) => FieldType::Int,
@@ -44,7 +52,13 @@ impl LiteralValue {
             LiteralValue::Ip(_) => FieldType::Ip,
             LiteralValue::Array(vals) => {
                 if vals.is_empty() {
-                    FieldType::Array(Box::new(FieldType::Unknown))
+                    if let Some(FieldType::Array(elem_ty)) = hint {
+                        FieldType::Array(elem_ty.clone())
+                    } else {
+                        // If log crate is available, emit a warning here
+                        // log::warn!("Type inference: empty array defaults to Unknown");
+                        FieldType::Array(Box::new(FieldType::Unknown))
+                    }
                 } else {
                     let first_ty = vals[0].get_type();
                     if vals.iter().all(|v| v.get_type() == first_ty) {
@@ -56,7 +70,12 @@ impl LiteralValue {
             }
             LiteralValue::Map(map) => {
                 if map.is_empty() {
-                    FieldType::Map(Box::new(FieldType::Unknown))
+                    if let Some(FieldType::Map(val_ty)) = hint {
+                        FieldType::Map(val_ty.clone())
+                    } else {
+                        // log::warn!("Type inference: empty map defaults to Unknown");
+                        FieldType::Map(Box::new(FieldType::Unknown))
+                    }
                 } else {
                     let mut iter = map.values();
                     let first_ty = iter.next().map(|v| v.get_type());
