@@ -8,24 +8,27 @@ use crate::context::FilterContext;
 use crate::schema::FilterSchema;
 use crate::functions::FunctionRegistry;
 use crate::WirerustError;
+use std::sync::Arc;
 
 pub struct CompiledFilter {
-    schema: FilterSchema,
+    schema: Arc<FilterSchema>,
+    functions: Arc<FunctionRegistry>,
     exec: Box<dyn Fn(&FilterContext) -> Result<bool, WirerustError> + Send + Sync>,
 }
 
 impl CompiledFilter {
-    pub fn new(expr: FilterExpr, schema: FilterSchema, functions: FunctionRegistry) -> Self {
-        let exec = DefaultCompiler::compile(expr, schema.clone(), functions.clone());
-        Self { schema, exec }
+    pub fn new(expr: FilterExpr, schema: Arc<FilterSchema>, functions: Arc<FunctionRegistry>) -> Self {
+        let exec = crate::compiler::DefaultCompiler::compile(expr, Arc::clone(&schema), Arc::clone(&functions));
+        Self { schema, functions, exec }
     }
-
     pub fn execute(&self, context: &FilterContext) -> Result<bool, WirerustError> {
         (self.exec)(context)
     }
-
     pub fn schema(&self) -> &FilterSchema {
         &self.schema
+    }
+    pub fn functions(&self) -> &FunctionRegistry {
+        &self.functions
     }
 }
 
@@ -60,7 +63,7 @@ mod tests {
             op: ComparisonOp::Eq,
             right: Box::new(FilterExpr::Value(LiteralValue::Int(42))),
         };
-        let filter = CompiledFilter::new(expr, schema(), FunctionRegistry::new());
+        let filter = CompiledFilter::new(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         assert!(filter.execute(&context()).unwrap());
     }
 
@@ -71,7 +74,7 @@ mod tests {
             op: ComparisonOp::Eq,
             right: Box::new(FilterExpr::Value(LiteralValue::Int(0))),
         };
-        let filter = CompiledFilter::new(expr, schema(), FunctionRegistry::new());
+        let filter = CompiledFilter::new(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         assert!(!filter.execute(&context()).unwrap());
     }
 
@@ -82,7 +85,7 @@ mod tests {
             op: ComparisonOp::Eq,
             right: Box::new(FilterExpr::Value(LiteralValue::Int(42))),
         };
-        let filter = CompiledFilter::new(expr, schema(), FunctionRegistry::new());
+        let filter = CompiledFilter::new(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         let sch = filter.schema();
         assert_eq!(sch.get_field_type("foo"), Some(&FieldType::Int));
     }

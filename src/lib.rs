@@ -12,6 +12,7 @@
 //! - Optional FFI/WASM bindings
 
 use thiserror::Error;
+use std::sync::Arc;
 
 mod schema;
 mod expr;
@@ -47,25 +48,30 @@ pub enum WirerustError {
 }
 
 pub struct WirerustEngine {
-    pub schema: FilterSchema,
-    pub functions: FunctionRegistry,
+    pub schema: Arc<FilterSchema>,
+    pub functions: Arc<FunctionRegistry>,
 }
 
 impl WirerustEngine {
     pub fn new(schema: FilterSchema) -> Self {
         let mut functions = FunctionRegistry::new();
         register_builtins(&mut functions);
-        Self { schema, functions }
+        Self {
+            schema: Arc::new(schema),
+            functions: Arc::new(functions),
+        }
     }
     pub fn with_functions(schema: FilterSchema, functions: FunctionRegistry) -> Self {
-        Self { schema, functions }
+        Self {
+            schema: Arc::new(schema),
+            functions: Arc::new(functions),
+        }
     }
     pub fn parse_filter(&self, expr: &str) -> Result<FilterExpr, WirerustError> {
         FilterParser::parse(expr, &self.schema)
     }
     pub fn compile_filter(&self, expr: FilterExpr) -> Result<CompiledFilter, WirerustError> {
-        // In the future, compilation may fail; for now, always Ok
-        Ok(CompiledFilter::new(expr, self.schema.clone(), self.functions.clone()))
+        Ok(CompiledFilter::new(expr, Arc::clone(&self.schema), Arc::clone(&self.functions)))
     }
     pub fn parse_and_compile(&self, expr: &str) -> Result<CompiledFilter, WirerustError> {
         let parsed = self.parse_filter(expr)?;

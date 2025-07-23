@@ -1,4 +1,5 @@
 use wirerust::*;
+use std::sync::Arc;
 
 fn main() -> Result<(), WirerustError> {
     // 1. Define schema
@@ -18,7 +19,7 @@ fn main() -> Result<(), WirerustError> {
     println!("Parsed AST: {:#?}", expr);
 
     // 4. Compile filter
-    let filter = CompiledFilter::new(expr, schema.clone(), functions);
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions));
 
     // 5. Create context and set values
     let mut ctx = FilterContext::new();

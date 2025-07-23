@@ -3,6 +3,7 @@
 use wirerust::*;
 use std::net::IpAddr;
 use std::str::FromStr;
+use std::sync::Arc;
 
 fn make_schema() -> FilterSchema {
     FilterSchemaBuilder::new()
@@ -31,7 +32,7 @@ fn test_filter_matches() {
     let functions = make_functions();
     let filter_str = r#"http.method == "GET" && port in {80 443} && len(tags) == 2"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
@@ -54,7 +55,7 @@ fn test_filter_does_not_match() {
     let functions = make_functions();
     let filter_str = r#"http.method == "POST" || port == 22"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
@@ -68,7 +69,7 @@ fn test_filter_with_function_call() {
     let functions = make_functions();
     let filter_str = r#"upper(http.method) == "GET""#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"get".to_vec()), &schema).unwrap();
@@ -93,7 +94,7 @@ fn test_regex_matches() {
     let functions = make_functions();
     let filter_str = r#"user_agent matches "Mozilla.*Firefox""#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("user_agent", LiteralValue::Bytes(b"Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0".to_vec()), &schema).unwrap();
@@ -108,7 +109,7 @@ fn test_regex_does_not_match() {
     let functions = make_functions();
     let filter_str = r#"user_agent matches "Chrome.*""#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("user_agent", LiteralValue::Bytes(b"Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0".to_vec()), &schema).unwrap();
@@ -123,7 +124,7 @@ fn test_regex_with_simple_pattern() {
     let functions = make_functions();
     let filter_str = r#"http.method matches "GET|POST""#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
@@ -139,7 +140,7 @@ fn test_ip_address_equality() {
     // For now, we'll test IP comparison by setting the IP value directly in context
     let filter_str = r#"ip == "192.168.1.1""#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     let ip = IpAddr::from_str("192.168.1.1").unwrap();
@@ -158,7 +159,7 @@ fn test_ip_address_in_set() {
     let functions = make_functions();
     let filter_str = r#"ip in {"192.168.1.1" "10.0.0.1" "172.16.0.1"}"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     let ip = IpAddr::from_str("10.0.0.1").unwrap();
@@ -178,7 +179,7 @@ fn test_boolean_true() {
     let functions = make_functions();
     let filter_str = r#"enabled == true"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("enabled", LiteralValue::Bool(true), &schema).unwrap();
@@ -192,7 +193,7 @@ fn test_boolean_false() {
     let functions = make_functions();
     let filter_str = r#"enabled == false"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("enabled", LiteralValue::Bool(false), &schema).unwrap();
@@ -206,7 +207,7 @@ fn test_boolean_not() {
     let functions = make_functions();
     let filter_str = r#"not enabled"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("enabled", LiteralValue::Bool(false), &schema).unwrap();
@@ -222,7 +223,7 @@ fn test_simple_logical_operations() {
     let filter_str = r#"http.method == "POST" && port == 443"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
     println!("Simple logical operations parsed expression: {:#?}", expr);
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
@@ -242,7 +243,7 @@ fn test_parenthesized_expression() {
     let filter_str = r#"(http.method == "POST") && (port == 443)"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
     println!("Parenthesized expression parsed: {:#?}", expr);
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
@@ -262,7 +263,7 @@ fn test_or_expression() {
     let filter_str = r#"http.method == "GET" || http.method == "POST" || http.method == "PUT""#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
     println!("OR expression parsed: {:#?}", expr);
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
@@ -281,7 +282,7 @@ fn test_mixed_and_or_expression() {
     let filter_str = r#"(http.method == "GET" || http.method == "POST") && (port == 80 || port == 443)"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
     println!("Mixed AND/OR expression parsed: {:#?}", expr);
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
@@ -301,7 +302,7 @@ fn test_with_enabled_field() {
     let filter_str = r#"enabled"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
     println!("Enabled field expression parsed: {:#?}", expr);
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("enabled", LiteralValue::Bool(true), &schema).unwrap();
@@ -320,7 +321,7 @@ fn test_with_len_function() {
     let filter_str = r#"len(headers) > 0"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
     println!("Len function expression parsed: {:#?}", expr);
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("headers", LiteralValue::Array(vec![
@@ -342,7 +343,7 @@ fn test_complex_logical_operations() {
     let filter_str = r#"(http.method == "GET" || http.method == "POST") && (port == 80 || port == 443) && enabled"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
     println!("Parsed expression: {:#?}", expr);
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
@@ -361,7 +362,7 @@ fn test_nested_parentheses() {
     let functions = make_functions();
     let filter_str = r#"((http.method == "GET") && (port in {80 443})) || ((http.method == "POST") && (port == 8080))"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
@@ -377,7 +378,7 @@ fn test_numeric_comparisons() {
     let functions = make_functions();
     let filter_str = r#"status_code >= 200 && status_code < 300 && request_size > 1000"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("status_code", LiteralValue::Int(200), &schema).unwrap();
@@ -392,7 +393,7 @@ fn test_not_in_operator() {
     let functions = make_functions();
     let filter_str = r#"port not in {22 25 110}"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("port", LiteralValue::Int(80), &schema).unwrap();
@@ -407,7 +408,7 @@ fn test_sum_function() {
     let functions = make_functions();
     let filter_str = r#"sum(headers) > 100"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("headers", LiteralValue::Array(vec![
@@ -425,7 +426,7 @@ fn test_multiple_function_calls() {
     let functions = make_functions();
     let filter_str = r#"len(tags) == 3 && sum(headers) == 180"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("tags", LiteralValue::Array(vec![
@@ -449,7 +450,7 @@ fn test_empty_array() {
     let functions = make_functions();
     let filter_str = r#"len(tags) == 0"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("tags", LiteralValue::Array(vec![]), &schema).unwrap();
@@ -463,7 +464,7 @@ fn test_missing_field_returns_false() {
     let functions = make_functions();
     let filter_str = r#"http.method == "GET""#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let ctx = FilterContext::new(); // Empty context
     
@@ -476,7 +477,7 @@ fn test_unknown_function_returns_false() {
     let functions = make_functions();
     let filter_str = r#"unknown_function(tags)"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("tags", LiteralValue::Array(vec![
@@ -493,7 +494,7 @@ fn test_string_inequality() {
     let functions = make_functions();
     let filter_str = r#"http.method != "DELETE""#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
@@ -507,7 +508,7 @@ fn test_case_insensitive_comparison() {
     let functions = make_functions();
     let filter_str = r#"upper(http.method) == "GET" && lower(http.method) == "get""#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"get".to_vec()), &schema).unwrap();
@@ -522,7 +523,7 @@ fn test_response_time_threshold() {
     let functions = make_functions();
     let filter_str = r#"response_time > 1000 && response_time <= 5000"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("response_time", LiteralValue::Int(2500), &schema).unwrap();
@@ -545,7 +546,7 @@ fn test_complex_web_request_filter() {
     "#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
     println!("Parsed expression: {:#?}", expr);
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
@@ -572,7 +573,7 @@ fn test_invalid_regex_pattern() {
     let functions = make_functions();
     let filter_str = r#"user_agent matches ".*""#; // Valid regex pattern instead of invalid one
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("user_agent", LiteralValue::Bytes(b"test".to_vec()), &schema).unwrap();
@@ -587,7 +588,7 @@ fn test_type_mismatch_in_comparison() {
     let functions = make_functions();
     let filter_str = r#"port == "not_a_number""#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("port", LiteralValue::Int(80), &schema).unwrap();
@@ -603,7 +604,7 @@ fn test_boundary_values() {
     let functions = make_functions();
     let filter_str = r#"status_code >= 0 && status_code <= 999 && port > 0 && port < 65536"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("status_code", LiteralValue::Int(0), &schema).unwrap();
@@ -626,7 +627,7 @@ fn test_mixed_operators() {
     let functions = make_functions();
     let filter_str = r#"http.method == "GET" && port != 22 && status_code in {200 201 204} && response_time <= 1000"#;
     let expr = FilterParser::parse(filter_str, &schema).expect("parse");
-    let filter = CompiledFilter::new(expr, schema.clone(), functions.clone());
+    let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
     ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
