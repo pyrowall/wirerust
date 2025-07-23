@@ -72,12 +72,7 @@ impl<'a> FilterParser<'a> {
 
     pub fn parse(input: &str, schema: &FilterSchema) -> Result<FilterExpr, WirerustError> {
         let mut parser = FilterParser::new(input, schema);
-        let expr = match parser.parse_expr() {
-            Ok(expr) => expr,
-            Err(e) => {
-                return Err(e);
-            }
-        };
+        let expr = parser.parse_expr().map_err(|e| WirerustError::ParseError(format!("Failed to parse expression at position {}: {e}", parser.pos)))?;
         parser.skip_whitespace();
         if parser.pos < parser.input.len() {
             return Err(WirerustError::ParseError(format!("Unexpected input at position {}", parser.pos)));

@@ -26,6 +26,23 @@ impl FunctionRegistry {
         self.functions.insert(name.into(), Arc::new(func));
     }
 
+    /// Register a closure as a filter function.
+    pub fn register_fn<F>(&mut self, name: impl Into<String>, func: F)
+    where
+        F: Fn(&[LiteralValue]) -> Option<LiteralValue> + Send + Sync + 'static,
+    {
+        struct ClosureFn<F>(F);
+        impl<F> FilterFunction for ClosureFn<F>
+        where
+            F: Fn(&[LiteralValue]) -> Option<LiteralValue> + Send + Sync + 'static,
+        {
+            fn call(&self, args: &[LiteralValue]) -> Option<LiteralValue> {
+                (self.0)(args)
+            }
+        }
+        self.register(name, ClosureFn(func));
+    }
+
     pub fn get(&self, name: &str) -> Option<&Arc<dyn FilterFunction>> {
         self.functions.get(name)
     }
@@ -153,5 +170,12 @@ mod tests {
         assert_eq!(reg.get("ends_with").unwrap().call(&[val.clone(), suffix.clone()]), Some(LiteralValue::Bool(true)));
         assert_eq!(reg.get("ends_with").unwrap().call(&[val.clone(), wrong.clone()]), Some(LiteralValue::Bool(false)));
         assert_eq!(reg.get("ends_with").unwrap().call(&[wrong.clone(), suffix.clone()]), Some(LiteralValue::Bool(false)));
+    }
+    #[test]
+    fn test_register_closure() {
+        let mut reg = FunctionRegistry::new();
+        reg.register_fn("always_true", |_args| Some(LiteralValue::Bool(true)));
+        let result = reg.get("always_true").unwrap().call(&[]);
+        assert_eq!(result, Some(LiteralValue::Bool(true)));
     }
 } 
