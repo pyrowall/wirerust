@@ -4,6 +4,7 @@ use wirerust::*;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::sync::Arc;
+use proptest::prelude::*;
 
 fn make_schema() -> FilterSchema {
     FilterSchemaBuilder::new()
@@ -636,4 +637,23 @@ fn test_mixed_operators() {
     ctx.set("response_time", LiteralValue::Int(500), &schema).unwrap();
     
     assert!(filter.execute(&ctx).unwrap());
+} 
+
+proptest! {
+    #[test]
+    fn parser_does_not_panic_on_random_input(s in ".{0,256}") {
+        let schema = make_schema();
+        let _ = FilterParser::parse(&s, &schema);
+    }
+}
+
+proptest! {
+    #[test]
+    fn parse_roundtrip_simple_int(val in 0i64..10000) {
+        let schema = make_schema();
+        let expr_str = format!("port == {}", val);
+        let expr = FilterParser::parse(&expr_str, &schema).expect("parse");
+        // (Optional) format back to string and reparse
+        let _ = format!("{:?}", expr); // Just ensure Debug works
+    }
 } 

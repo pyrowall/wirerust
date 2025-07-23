@@ -90,27 +90,41 @@ impl<'a> FilterParser<'a> {
     }
 
     fn parse_or(&mut self) -> Result<FilterExpr, WirerustError> {
+        self.skip_whitespace();
         let mut left = self.parse_and()?;
-        while self.consume("||") || self.consume("or") {
-            let right = self.parse_and()?;
-            left = FilterExpr::LogicalOp {
-                op: LogicalOp::Or,
-                left: Box::new(left),
-                right: Box::new(right),
-            };
+        loop {
+            self.skip_whitespace();
+            if self.consume("||") || self.consume("or") {
+                self.skip_whitespace();
+                let right = { self.skip_whitespace(); self.parse_and()? };
+                left = FilterExpr::LogicalOp {
+                    op: LogicalOp::Or,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                };
+            } else {
+                break;
+            }
         }
         Ok(left)
     }
 
     fn parse_and(&mut self) -> Result<FilterExpr, WirerustError> {
+        self.skip_whitespace();
         let mut left = self.parse_not()?;
-        while self.consume("&&") || self.consume("and") {
-            let right = self.parse_not()?;
-            left = FilterExpr::LogicalOp {
-                op: LogicalOp::And,
-                left: Box::new(left),
-                right: Box::new(right),
-            };
+        loop {
+            self.skip_whitespace();
+            if self.consume("&&") || self.consume("and") {
+                self.skip_whitespace();
+                let right = { self.skip_whitespace(); self.parse_not()? };
+                left = FilterExpr::LogicalOp {
+                    op: LogicalOp::And,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                };
+            } else {
+                break;
+            }
         }
         Ok(left)
     }
@@ -230,15 +244,18 @@ impl<'a> FilterParser<'a> {
     fn parse_identifier(&mut self) -> Result<String, WirerustError> {
         self.skip_whitespace();
         let start = self.pos;
-        while let Some(c) = self.peek() {
+        let mut end = self.pos;
+        for (i, c) in self.input[self.pos..].char_indices() {
             if c.is_alphanumeric() || c == '_' || c == '.' {
-                self.pos += 1;
+                end = self.pos + i + c.len_utf8();
             } else {
                 break;
             }
         }
-        if self.pos > start {
-            Ok(self.input[start..self.pos].to_string())
+        if end > start {
+            let ident = &self.input[start..end];
+            self.pos = end;
+            Ok(ident.to_string())
         } else {
             Err(WirerustError::ParseError(format!("Expected identifier at position {}", self.pos)))
         }
@@ -295,31 +312,36 @@ impl<'a> FilterParser<'a> {
 
     fn parse_string_literal(&mut self) -> Result<LiteralValue, WirerustError> {
         self.skip_whitespace();
-        if !self.consume("\"") {
-            return Err(WirerustError::ParseError(format!("Expected '\"' at position {}", self.pos)));
+        if self.peek() != Some('"') {
+            return Err(WirerustError::ParseError(format!("Expected \" at position {}", self.pos)));
         }
+        self.consume_char(); // consume opening quote
         let start = self.pos;
+        let mut end = self.pos;
         while let Some(c) = self.peek() {
             if c == '"' {
-                let s = self.input[start..self.pos].to_string();
-                self.consume_char();
-                return Ok(LiteralValue::Bytes(s.into_bytes()));
-            } else {
-                self.pos += 1;
+                break;
             }
+            self.consume_char();
+            end = self.pos;
         }
-        Err(WirerustError::ParseError(format!("Unterminated string literal at position {}", self.pos)))
+        if self.peek() != Some('"') {
+            return Err(WirerustError::ParseError(format!("Unterminated string literal at position {}", self.pos)));
+        }
+        let s = &self.input[start..end];
+        self.consume_char(); // consume closing quote
+        Ok(LiteralValue::Bytes(s.as_bytes().to_vec()))
     }
 
     fn parse_int_literal(&mut self) -> Result<LiteralValue, WirerustError> {
         self.skip_whitespace();
         let start = self.pos;
         if self.peek() == Some('-') {
-            self.pos += 1;
+            self.consume_char();
         }
         while let Some(c) = self.peek() {
             if c.is_ascii_digit() {
-                self.pos += 1;
+                self.consume_char();
             } else {
                 break;
             }
@@ -358,7 +380,7 @@ impl<'a> FilterParser<'a> {
     fn skip_whitespace(&mut self) {
         while let Some(c) = self.peek() {
             if c.is_whitespace() {
-                self.pos += 1;
+                self.consume_char();
             } else {
                 break;
             }
@@ -366,8 +388,7 @@ impl<'a> FilterParser<'a> {
     }
 
     fn consume(&mut self, s: &str) -> bool {
-        self.skip_whitespace();
-        if self.input[self.pos..].starts_with(s) {
+        if self.input[self.pos..].as_bytes().starts_with(s.as_bytes()) {
             self.pos += s.len();
             true
         } else {
@@ -376,9 +397,10 @@ impl<'a> FilterParser<'a> {
     }
 
     fn consume_char(&mut self) -> Option<char> {
-        let c = self.peek()?;
-        self.pos += c.len_utf8();
-        Some(c)
+        let mut iter = self.input[self.pos..].char_indices();
+        let (offset, ch) = iter.next()?;
+        self.pos += offset + ch.len_utf8();
+        Some(ch)
     }
 
     fn peek(&self) -> Option<char> {
