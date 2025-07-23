@@ -5,6 +5,7 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use proptest::prelude::*;
+use proptest::collection::vec as pvec;
 
 fn make_schema() -> FilterSchema {
     FilterSchemaBuilder::new()
@@ -656,4 +657,119 @@ proptest! {
         // (Optional) format back to string and reparse
         let _ = format!("{:?}", expr); // Just ensure Debug works
     }
+} 
+
+proptest! {
+    #[test]
+    fn prop_type_inference_array_infers_type(vals in pvec(0i64..100, 0..10)) {
+        use wirerust::{LiteralValue, FieldType};
+        let arr = LiteralValue::Array(vals.iter().map(|&i| LiteralValue::Int(i)).collect());
+        let ty = arr.get_type();
+        if vals.is_empty() {
+            assert_eq!(ty, FieldType::Array(Box::new(FieldType::Unknown)));
+        } else {
+            assert_eq!(ty, FieldType::Array(Box::new(FieldType::Int)));
+        }
+    }
+
+    #[test]
+    fn prop_type_inference_array_mixed_types(ints in pvec(0i64..100, 0..5), strs in pvec(".*", 0..5)) {
+        use wirerust::{LiteralValue, FieldType};
+        let mut vals: Vec<LiteralValue> = ints.iter().map(|&i| LiteralValue::Int(i)).collect();
+        vals.extend(strs.iter().map(|s| LiteralValue::Bytes(s.as_bytes().to_vec())));
+        let arr = LiteralValue::Array(vals);
+        let ty = arr.get_type();
+        if ints.is_empty() || strs.is_empty() {
+            // If only one type, should infer that type
+            if ints.is_empty() && !strs.is_empty() {
+                assert_eq!(ty, FieldType::Array(Box::new(FieldType::Bytes)));
+            } else if !ints.is_empty() && strs.is_empty() {
+                assert_eq!(ty, FieldType::Array(Box::new(FieldType::Int)));
+            } else {
+                assert_eq!(ty, FieldType::Array(Box::new(FieldType::Unknown)));
+            }
+        } else {
+            // Mixed types should infer Unknown
+            assert_eq!(ty, FieldType::Array(Box::new(FieldType::Unknown)));
+        }
+    }
+
+    #[test]
+    fn prop_type_inference_map_infers_type(ints in pvec(0i64..100, 0..5), strs in pvec(".*", 0..5)) {
+        use wirerust::{LiteralValue, FieldType};
+        use std::collections::HashMap;
+        let mut map = HashMap::new();
+        for (i, v) in ints.iter().enumerate() {
+            map.insert(format!("k_int_{}", i), LiteralValue::Int(*v));
+        }
+        for (i, s) in strs.iter().enumerate() {
+            map.insert(format!("k_str_{}", i), LiteralValue::Bytes(s.as_bytes().to_vec()));
+        }
+        let val = LiteralValue::Map(map);
+        let ty = val.get_type();
+        if ints.is_empty() || strs.is_empty() {
+            if ints.is_empty() && !strs.is_empty() {
+                assert_eq!(ty, FieldType::Map(Box::new(FieldType::Bytes)));
+            } else if !ints.is_empty() && strs.is_empty() {
+                assert_eq!(ty, FieldType::Map(Box::new(FieldType::Int)));
+            } else {
+                assert_eq!(ty, FieldType::Map(Box::new(FieldType::Unknown)));
+            }
+        } else {
+            assert_eq!(ty, FieldType::Map(Box::new(FieldType::Unknown)));
+        }
+    }
+}
+
+proptest! {
+    #[test]
+    fn prop_execute_random_filter_and_context(int_val in 0i64..100, str_val in ".{0,16}") {
+        use wirerust::*;
+        let schema = FilterSchemaBuilder::new()
+            .field("foo", FieldType::Int)
+            .field("bar", FieldType::Bytes)
+            .build();
+        let engine = WirerustEngineBuilder::new()
+            .field("foo", FieldType::Int)
+            .field("bar", FieldType::Bytes)
+            .build();
+        // Randomly choose between int or string filter
+        let filter_str = if int_val % 2 == 0 {
+            format!("foo == {}", int_val)
+        } else {
+            format!("bar == \"{}\"", str_val)
+        };
+        let filter = engine.parse_and_compile(&filter_str);
+        // Context with both fields
+        let mut ctx = FilterContext::new();
+        ctx.set_int("foo", int_val, &engine.schema);
+        ctx.set_bytes("bar", str_val.as_bytes(), &engine.schema);
+        if let Ok(filter) = filter {
+            let _ = engine.execute(&filter, &ctx);
+        }
+    }
+}
+
+#[test]
+fn test_error_reporting_unknown_function() {
+    use wirerust::*;
+    let schema = FilterSchemaBuilder::new().field("foo", FieldType::Int).build();
+    let engine = WirerustEngineBuilder::new().field("foo", FieldType::Int).build();
+    let filter = engine.parse_and_compile("not_a_function(foo)").unwrap();
+    let mut ctx = FilterContext::new();
+    ctx.set_int("foo", 1, &engine.schema);
+    let result = engine.execute(&filter, &ctx);
+    assert!(matches!(result, Err(WirerustError::FunctionError(_))));
+}
+
+#[test]
+fn test_error_reporting_type_mismatch() {
+    use wirerust::*;
+    let schema = FilterSchemaBuilder::new().field("foo", FieldType::Int).build();
+    let engine = WirerustEngineBuilder::new().field("foo", FieldType::Int).build();
+    let filter = engine.parse_and_compile("foo == \"not_an_int\"").unwrap();
+    let mut ctx = FilterContext::new();
+    ctx.set_int("foo", 1, &engine.schema);
+    let result = engine.execute(&filter, &ctx);
+    assert!(matches!(result, Ok(false)));
 } 
