@@ -82,6 +82,58 @@ impl WirerustEngine {
     }
 }
 
+/// Builder for WirerustEngine, for ergonomic embedding and configuration.
+pub struct WirerustEngineBuilder {
+    schema_builder: FilterSchemaBuilder,
+    functions: FunctionRegistry,
+    use_builtins: bool,
+}
+
+impl WirerustEngineBuilder {
+    /// Create a new engine builder.
+    pub fn new() -> Self {
+        Self {
+            schema_builder: FilterSchemaBuilder::new(),
+            functions: FunctionRegistry::new(),
+            use_builtins: true,
+        }
+    }
+    /// Add a field to the schema.
+    pub fn field(mut self, name: impl Into<String>, ty: FieldType) -> Self {
+        self.schema_builder = self.schema_builder.field(name, ty);
+        self
+    }
+    /// Register a custom function.
+    pub fn register_function<F: FilterFunction + 'static>(mut self, name: impl Into<String>, func: F) -> Self {
+        self.functions.register(name, func);
+        self
+    }
+    /// Disable built-in functions (by default, builtins are registered).
+    pub fn no_builtins(mut self) -> Self {
+        self.use_builtins = false;
+        self
+    }
+    /// Build the engine.
+    pub fn build(self) -> WirerustEngine {
+        let schema = self.schema_builder.build();
+        let mut functions = self.functions;
+        if self.use_builtins {
+            register_builtins(&mut functions);
+        }
+        WirerustEngine::with_functions(schema, functions)
+    }
+}
+
+/// Example usage:
+///
+/// ```rust
+/// use wirerust::{WirerustEngineBuilder, FieldType};
+/// let engine = WirerustEngineBuilder::new()
+///     .field("foo", FieldType::Int)
+///     .field("bar", FieldType::Bytes)
+///     .build();
+/// ```
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,5 +155,53 @@ mod tests {
             .build();
         let result = engine.execute(&filter, &ctx).unwrap();
         assert!(result);
+    }
+
+    #[test]
+    fn test_engine_builder_minimal() {
+        let engine = WirerustEngineBuilder::new()
+            .field("foo", FieldType::Int)
+            .field("bar", FieldType::Bytes)
+            .build();
+        let filter = engine.parse_and_compile("foo == 1 && bar == \"abc\"").unwrap();
+        let ctx = FilterContextBuilder::new(&engine.schema)
+            .set_int("foo", 1).unwrap()
+            .set_bytes("bar", b"abc").unwrap()
+            .build();
+        assert!(engine.execute(&filter, &ctx).unwrap());
+    }
+
+    #[test]
+    fn test_engine_builder_with_custom_function() {
+        struct AlwaysTrue;
+        impl FilterFunction for AlwaysTrue {
+            fn call(&self, _args: &[LiteralValue]) -> Option<LiteralValue> {
+                Some(LiteralValue::Bool(true))
+            }
+        }
+        let engine = WirerustEngineBuilder::new()
+            .field("foo", FieldType::Int)
+            .register_function("always_true", AlwaysTrue)
+            .build();
+        let filter = engine.parse_and_compile("always_true() && foo == 5").unwrap();
+        let ctx = FilterContextBuilder::new(&engine.schema)
+            .set_int("foo", 5).unwrap()
+            .build();
+        assert!(engine.execute(&filter, &ctx).unwrap());
+    }
+
+    #[test]
+    fn test_engine_builder_no_builtins() {
+        let engine = WirerustEngineBuilder::new()
+            .field("foo", FieldType::Int)
+            .no_builtins()
+            .build();
+        // Built-in function 'len' should not be available
+        let filter = engine.parse_and_compile("len(foo)").unwrap();
+        let ctx = FilterContextBuilder::new(&engine.schema)
+            .set_int("foo", 1).unwrap()
+            .build();
+        let result = engine.execute(&filter, &ctx);
+        assert!(result.is_err(), "Expected error when executing missing built-in function");
     }
 }

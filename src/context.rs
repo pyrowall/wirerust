@@ -51,13 +51,15 @@ impl<'a> FilterContextBuilder<'a> {
 
 macro_rules! context_setter {
     ($name:ident, $variant:ident, $ty:ty) => {
-        pub fn $name(&mut self, field: &str, value: $ty, schema: &FilterSchema) -> Result<(), WirerustError> {
-            self.set(field, LiteralValue::$variant(value), schema)
+        pub fn $name(&mut self, field: &str, value: $ty, schema: &FilterSchema) -> &mut Self {
+            let _ = self.set(field, LiteralValue::$variant(value), schema);
+            self
         }
     };
     (bytes) => {
-        pub fn set_bytes<T: AsRef<[u8]>>(&mut self, field: &str, value: T, schema: &FilterSchema) -> Result<(), WirerustError> {
-            self.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), schema)
+        pub fn set_bytes<T: AsRef<[u8]>>(&mut self, field: &str, value: T, schema: &FilterSchema) -> &mut Self {
+            let _ = self.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), schema);
+            self
         }
     };
 }
@@ -171,10 +173,10 @@ mod tests {
         let sch = schema();
         let mut ctx = FilterContext::new();
         let ip = IpAddr::from_str("192.168.1.1").unwrap();
-        ctx.set_int("foo", 123, &sch).unwrap();
-        ctx.set_bytes("bar", b"abc", &sch).unwrap();
-        ctx.set_bool("flag", false, &sch).unwrap();
-        ctx.set_ip("ip", ip, &sch).unwrap();
+        ctx.set_int("foo", 123, &sch)
+            .set_bytes("bar", b"abc", &sch)
+            .set_bool("flag", false, &sch)
+            .set_ip("ip", ip, &sch);
         assert_eq!(ctx.get_int("foo"), Some(123));
         assert_eq!(ctx.get_bytes("bar"), Some(&b"abc"[..]));
         assert_eq!(ctx.get_bool("flag"), Some(false));
