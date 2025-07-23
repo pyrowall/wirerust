@@ -49,6 +49,32 @@ impl<'a> FilterContextBuilder<'a> {
     }
 }
 
+macro_rules! context_setter {
+    ($name:ident, $variant:ident, $ty:ty) => {
+        pub fn $name(&mut self, field: &str, value: $ty, schema: &FilterSchema) -> Result<(), WirerustError> {
+            self.set(field, LiteralValue::$variant(value), schema)
+        }
+    };
+}
+macro_rules! context_getter {
+    ($name:ident, $variant:ident, $ty:ty) => {
+        pub fn $name(&self, field: &str) -> Option<$ty> {
+            match self.get(field) {
+                Some(&LiteralValue::$variant(ref v)) => Some(v.clone()),
+                _ => None,
+            }
+        }
+    };
+    (bytes) => {
+        pub fn get_bytes(&self, field: &str) -> Option<&[u8]> {
+            match self.get(field) {
+                Some(&LiteralValue::Bytes(ref b)) => Some(&b[..]),
+                _ => None,
+            }
+        }
+    };
+}
+
 impl FilterContext {
     pub fn new() -> Self {
         Self {
@@ -86,42 +112,18 @@ impl FilterContext {
         &self.values
     }
 
-    pub fn set_int(&mut self, field: &str, value: i64, schema: &FilterSchema) -> Result<(), WirerustError> {
-        self.set(field, LiteralValue::Int(value), schema)
-    }
+    context_setter!(set_int, Int, i64);
     pub fn set_bytes(&mut self, field: &str, value: impl AsRef<[u8]>, schema: &FilterSchema) -> Result<(), WirerustError> {
         self.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), schema)
     }
-    pub fn set_bool(&mut self, field: &str, value: bool, schema: &FilterSchema) -> Result<(), WirerustError> {
-        self.set(field, LiteralValue::Bool(value), schema)
-    }
-    pub fn set_ip(&mut self, field: &str, value: IpAddr, schema: &FilterSchema) -> Result<(), WirerustError> {
-        self.set(field, LiteralValue::Ip(value), schema)
-    }
-    pub fn get_int(&self, field: &str) -> Option<i64> {
-        match self.get(field) {
-            Some(LiteralValue::Int(i)) => Some(*i),
-            _ => None,
-        }
-    }
-    pub fn get_bytes(&self, field: &str) -> Option<&[u8]> {
-        match self.get(field) {
-            Some(LiteralValue::Bytes(b)) => Some(b),
-            _ => None,
-        }
-    }
-    pub fn get_bool(&self, field: &str) -> Option<bool> {
-        match self.get(field) {
-            Some(LiteralValue::Bool(b)) => Some(*b),
-            _ => None,
-        }
-    }
-    pub fn get_ip(&self, field: &str) -> Option<IpAddr> {
-        match self.get(field) {
-            Some(LiteralValue::Ip(ip)) => Some(*ip),
-            _ => None,
-        }
-    }
+    context_setter!(set_bool, Bool, bool);
+    context_setter!(set_ip, Ip, IpAddr);
+    context_setter!(set_array, Array, Vec<LiteralValue>);
+    context_getter!(get_int, Int, i64);
+    context_getter!(bytes);
+    context_getter!(get_bool, Bool, bool);
+    context_getter!(get_ip, Ip, IpAddr);
+    context_getter!(get_array, Array, Vec<LiteralValue>);
 }
 
 #[cfg(test)]

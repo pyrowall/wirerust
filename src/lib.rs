@@ -11,6 +11,8 @@
 //! - Extensible function/type registry
 //! - Optional FFI/WASM bindings
 
+use thiserror::Error;
+
 mod schema;
 mod expr;
 mod compiler;
@@ -27,33 +29,22 @@ pub use context::*;
 pub use types::*;
 pub use functions::*;
 
-use std::fmt;
-
-/// Unified error type for Wirerust operations
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum WirerustError {
+    #[error("Parse error: {0}")]
     ParseError(String),
+    #[error("Type error: {0}")]
     TypeError(String),
+    #[error("Function error: {0}")]
     FunctionError(String),
+    #[error("Field not found: {0}")]
     FieldNotFound(String),
+    #[error("Execution error: {0}")]
     ExecutionError(String),
+    #[error("Error: {0}")]
     Other(String),
 }
-
-impl fmt::Display for WirerustError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            WirerustError::ParseError(e) => write!(f, "Parse error: {}", e),
-            WirerustError::TypeError(e) => write!(f, "Type error: {}", e),
-            WirerustError::FunctionError(e) => write!(f, "Function error: {}", e),
-            WirerustError::FieldNotFound(e) => write!(f, "Field not found: {}", e),
-            WirerustError::ExecutionError(e) => write!(f, "Execution error: {}", e),
-            WirerustError::Other(e) => write!(f, "Error: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for WirerustError {}
 
 pub struct WirerustEngine {
     pub schema: FilterSchema,
@@ -72,12 +63,13 @@ impl WirerustEngine {
     pub fn parse_filter(&self, expr: &str) -> Result<FilterExpr, WirerustError> {
         FilterParser::parse(expr, &self.schema)
     }
-    pub fn compile_filter(&self, expr: FilterExpr) -> CompiledFilter {
-        CompiledFilter::new(expr, self.schema.clone(), self.functions.clone())
+    pub fn compile_filter(&self, expr: FilterExpr) -> Result<CompiledFilter, WirerustError> {
+        // In the future, compilation may fail; for now, always Ok
+        Ok(CompiledFilter::new(expr, self.schema.clone(), self.functions.clone()))
     }
     pub fn parse_and_compile(&self, expr: &str) -> Result<CompiledFilter, WirerustError> {
         let parsed = self.parse_filter(expr)?;
-        Ok(self.compile_filter(parsed))
+        self.compile_filter(parsed)
     }
     pub fn execute(&self, filter: &CompiledFilter, ctx: &FilterContext) -> Result<bool, WirerustError> {
         filter.execute(ctx)

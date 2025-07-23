@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 use crate::WirerustError;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FilterExpr {
     LogicalOp {
         op: LogicalOp,
@@ -30,12 +31,14 @@ pub enum FilterExpr {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum LogicalOp {
     And,
     Or,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ComparisonOp {
     Eq,
     Neq,

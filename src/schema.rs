@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct FilterSchema {
     fields: HashMap<String, FieldType>,
 }

@@ -7,6 +7,7 @@ use std::net::IpAddr;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FieldType {
     Bytes,
     Int,
@@ -18,6 +19,7 @@ pub enum FieldType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum LiteralValue {
     Bytes(Vec<u8>),
     Int(i64),
