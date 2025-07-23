@@ -47,12 +47,14 @@ pub enum WirerustError {
     Other(String),
 }
 
+/// The main engine for parsing, compiling, and executing filters.
 pub struct WirerustEngine {
-    pub schema: Arc<FilterSchema>,
-    pub functions: Arc<FunctionRegistry>,
+    schema: Arc<FilterSchema>,
+    functions: Arc<FunctionRegistry>,
 }
 
 impl WirerustEngine {
+    /// Create a new engine with the given schema and built-in functions.
     pub fn new(schema: FilterSchema) -> Self {
         let mut functions = FunctionRegistry::new();
         register_builtins(&mut functions);
@@ -61,22 +63,35 @@ impl WirerustEngine {
             functions: Arc::new(functions),
         }
     }
+    /// Create a new engine with the given schema and custom function registry.
     pub fn with_functions(schema: FilterSchema, functions: FunctionRegistry) -> Self {
         Self {
             schema: Arc::new(schema),
             functions: Arc::new(functions),
         }
     }
+    /// Get a reference to the filter schema.
+    pub fn schema(&self) -> &FilterSchema {
+        &self.schema
+    }
+    /// Get a reference to the function registry.
+    pub fn functions(&self) -> &FunctionRegistry {
+        &self.functions
+    }
+    /// Parse a filter expression string into an AST.
     pub fn parse_filter(&self, expr: &str) -> Result<FilterExpr, WirerustError> {
         FilterParser::parse(expr, &self.schema)
     }
+    /// Compile a parsed filter expression into an executable filter.
     pub fn compile_filter(&self, expr: FilterExpr) -> Result<CompiledFilter, WirerustError> {
         Ok(CompiledFilter::new(expr, Arc::clone(&self.schema), Arc::clone(&self.functions)))
     }
+    /// Parse and compile a filter expression string in one step.
     pub fn parse_and_compile(&self, expr: &str) -> Result<CompiledFilter, WirerustError> {
         let parsed = self.parse_filter(expr)?;
         self.compile_filter(parsed)
     }
+    /// Execute a compiled filter against a context.
     pub fn execute(&self, filter: &CompiledFilter, ctx: &FilterContext) -> Result<bool, WirerustError> {
         filter.execute(ctx)
     }

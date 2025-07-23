@@ -742,8 +742,8 @@ proptest! {
         let filter = engine.parse_and_compile(&filter_str);
         // Context with both fields
         let mut ctx = FilterContext::new();
-        ctx.set_int("foo", int_val, &engine.schema);
-        ctx.set_bytes("bar", str_val.as_bytes(), &engine.schema);
+        ctx.set_int("foo", int_val, &engine.schema());
+        ctx.set_bytes("bar", str_val.as_bytes(), &engine.schema());
         if let Ok(filter) = filter {
             let _ = engine.execute(&filter, &ctx);
         }
@@ -757,7 +757,7 @@ fn test_error_reporting_unknown_function() {
     let engine = WirerustEngineBuilder::new().field("foo", FieldType::Int).build();
     let filter = engine.parse_and_compile("not_a_function(foo)").unwrap();
     let mut ctx = FilterContext::new();
-    ctx.set_int("foo", 1, &engine.schema);
+    ctx.set_int("foo", 1, &engine.schema());
     let result = engine.execute(&filter, &ctx);
     assert!(matches!(result, Err(WirerustError::FunctionError(_))));
 }
@@ -769,7 +769,7 @@ fn test_error_reporting_type_mismatch() {
     let engine = WirerustEngineBuilder::new().field("foo", FieldType::Int).build();
     let filter = engine.parse_and_compile("foo == \"not_an_int\"").unwrap();
     let mut ctx = FilterContext::new();
-    ctx.set_int("foo", 1, &engine.schema);
+    ctx.set_int("foo", 1, &engine.schema());
     let result = engine.execute(&filter, &ctx);
     assert!(matches!(result, Ok(false)));
 } 

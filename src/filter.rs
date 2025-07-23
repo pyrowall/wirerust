@@ -10,6 +10,7 @@ use crate::functions::FunctionRegistry;
 use crate::WirerustError;
 use std::sync::Arc;
 
+/// A compiled filter, ready for execution.
 pub struct CompiledFilter {
     schema: Arc<FilterSchema>,
     functions: Arc<FunctionRegistry>,
@@ -17,16 +18,20 @@ pub struct CompiledFilter {
 }
 
 impl CompiledFilter {
+    /// Create a new compiled filter from an expression, schema, and function registry.
     pub fn new(expr: FilterExpr, schema: Arc<FilterSchema>, functions: Arc<FunctionRegistry>) -> Self {
         let exec = crate::compiler::DefaultCompiler::compile(expr, Arc::clone(&schema), Arc::clone(&functions));
         Self { schema, functions, exec }
     }
+    /// Execute the filter against a context.
     pub fn execute(&self, context: &FilterContext) -> Result<bool, WirerustError> {
         (self.exec)(context)
     }
+    /// Get a reference to the schema used by this filter.
     pub fn schema(&self) -> &FilterSchema {
         &self.schema
     }
+    /// Get a reference to the function registry used by this filter.
     pub fn functions(&self) -> &FunctionRegistry {
         &self.functions
     }
