@@ -5,14 +5,15 @@
 use crate::types::{LiteralValue};
 use crate::types::FieldType;
 use crate::schema::FilterSchema;
-use std::collections::HashMap;
+//use std::collections::HashMap; // unused
 use serde::{Serialize, Deserialize};
 use crate::WirerustError;
 use std::net::IpAddr;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FilterContext {
-    values: HashMap<String, LiteralValue>,
+    field_values: Vec<Option<LiteralValue>>, // index = FieldId
 }
 
 pub struct FilterContextBuilder<'a> {
@@ -27,71 +28,44 @@ impl<'a> FilterContextBuilder<'a> {
     pub fn build(self) -> FilterContext {
         self.ctx
     }
+    pub fn set_int(mut self, field: &str, value: i64) -> Result<Self, WirerustError> {
+        self.ctx.set_int(field, value, self.schema);
+        Ok(self)
+    }
+    pub fn set_bool(mut self, field: &str, value: bool) -> Result<Self, WirerustError> {
+        self.ctx.set_bool(field, value, self.schema);
+        Ok(self)
+    }
+    pub fn set_ip(mut self, field: &str, value: IpAddr) -> Result<Self, WirerustError> {
+        self.ctx.set_ip(field, value, self.schema);
+        Ok(self)
+    }
+    pub fn set_bytes(mut self, field: &str, value: impl AsRef<[u8]>) -> Result<Self, WirerustError> {
+        self.ctx.set_bytes(field, value, self.schema);
+        Ok(self)
+    }
+    pub fn set_array(mut self, field: &str, value: Vec<LiteralValue>) -> Result<Self, WirerustError> {
+        self.ctx.set_array(field, value, self.schema);
+        Ok(self)
+    }
 }
-
-/// Macro to generate both builder and context setters for a given type.
-macro_rules! define_setters_and_getters {
-    // For types with owned value
-    ($(($set_name:ident, $builder_set:ident, $variant:ident, $ty:ty, $get_name:ident)),* $(,)?) => {
-        impl<'a> FilterContextBuilder<'a> {
-            $(
-            pub fn $builder_set(mut self, field: &str, value: $ty) -> Result<Self, WirerustError> {
-                self.ctx.$set_name(field, value, self.schema);
-                Ok(self)
-            }
-            )*
-        }
-        impl FilterContext {
-            $(
-            pub fn $set_name(&mut self, field: &str, value: $ty, schema: &FilterSchema) -> &mut Self {
-                let _ = self.set(field, LiteralValue::$variant(value), schema);
-                self
-            }
-            pub fn $get_name(&self, field: &str) -> Option<$ty> {
-                match self.get(field) {
-                    Some(&LiteralValue::$variant(ref v)) => Some(v.clone()),
-                    _ => None,
-                }
-            }
-            )*
-        }
-    };
-    // Special case for bytes
-    (bytes) => {
-        impl<'a> FilterContextBuilder<'a> {
-            pub fn set_bytes(mut self, field: &str, value: impl AsRef<[u8]>) -> Result<Self, WirerustError> {
-                self.ctx.set_bytes(field, value, self.schema);
-                Ok(self)
-            }
-        }
-        impl FilterContext {
-            pub fn set_bytes<T: AsRef<[u8]>>(&mut self, field: &str, value: T, schema: &FilterSchema) -> &mut Self {
-                let _ = self.set(field, LiteralValue::Bytes(value.as_ref().to_vec()), schema);
-                self
-            }
-            pub fn get_bytes(&self, field: &str) -> Option<&[u8]> {
-                match self.get(field) {
-                    Some(&LiteralValue::Bytes(ref b)) => Some(&b[..]),
-                    _ => None,
-                }
-            }
-        }
-    };
-}
-
-define_setters_and_getters! {
-    (set_int, set_int, Int, i64, get_int),
-    (set_bool, set_bool, Bool, bool, get_bool),
-    (set_ip, set_ip, Ip, IpAddr, get_ip),
-    (set_array, set_array, Array, Vec<LiteralValue>, get_array),
-}
-define_setters_and_getters!(bytes);
 
 impl FilterContext {
     pub fn new() -> Self {
         Self {
-            values: HashMap::new(),
+            field_values: Vec::new(),
         }
+    }
+    /// Set a field value by field ID.
+    pub fn set_by_id(&mut self, field_id: usize, value: LiteralValue) {
+        if self.field_values.len() <= field_id {
+            self.field_values.resize(field_id + 1, None);
+        }
+        self.field_values[field_id] = Some(value);
+    }
+    /// Get a field value by field ID.
+    pub fn get_by_id(&self, field_id: usize) -> Option<&LiteralValue> {
+        self.field_values.get(field_id).and_then(|v| v.as_ref())
     }
 
     pub fn set(&mut self, field: &str, value: LiteralValue, schema: &FilterSchema) -> Result<(), WirerustError> {
@@ -99,14 +73,18 @@ impl FilterContext {
             Some(expected_type) => {
                 let value_type = value.get_type();
                 // Special case: allow empty arrays for any array type
-                if let (FieldType::Array(expected_elem), FieldType::Array(value_elem)) = (expected_type, &value_type) {
+                if let (FieldType::Array(_expected_elem), FieldType::Array(value_elem)) = (expected_type, &value_type) {
                     if let FieldType::Unknown = **value_elem {
-                        self.values.insert(field.to_string(), value);
+                        if let Some(fid) = schema.field_id(field) {
+                            self.set_by_id(fid, value.clone());
+                        }
                         return Ok(());
                     }
                 }
                 if &value_type == expected_type {
-                    self.values.insert(field.to_string(), value);
+                    if let Some(fid) = schema.field_id(field) {
+                        self.set_by_id(fid, value.clone());
+                    }
                     Ok(())
                 } else {
                     Err(WirerustError::TypeError(format!("Type mismatch for field '{}': expected {:?}, got {:?}", field, expected_type, value_type)))
@@ -116,12 +94,59 @@ impl FilterContext {
         }
     }
 
-    pub fn get(&self, field: &str) -> Option<&LiteralValue> {
-        self.values.get(field)
+    pub fn get(&self, field: &str, schema: &FilterSchema) -> Option<&LiteralValue> {
+        schema.field_id(field).and_then(|fid| self.get_by_id(fid))
     }
 
-    pub fn values(&self) -> &HashMap<String, LiteralValue> {
-        &self.values
+    pub fn set_int(&mut self, field: &str, value: i64, schema: &FilterSchema) -> &mut Self {
+        let _ = self.set(field, LiteralValue::Int(value), schema);
+        self
+    }
+    pub fn set_bool(&mut self, field: &str, value: bool, schema: &FilterSchema) -> &mut Self {
+        let _ = self.set(field, LiteralValue::Bool(value), schema);
+        self
+    }
+    pub fn set_ip(&mut self, field: &str, value: IpAddr, schema: &FilterSchema) -> &mut Self {
+        let _ = self.set(field, LiteralValue::Ip(value), schema);
+        self
+    }
+    pub fn set_bytes<T: AsRef<[u8]>>(&mut self, field: &str, value: T, schema: &FilterSchema) -> &mut Self {
+        let _ = self.set(field, LiteralValue::Bytes(Arc::new(value.as_ref().to_vec())), schema);
+        self
+    }
+    pub fn set_array(&mut self, field: &str, value: Vec<LiteralValue>, schema: &FilterSchema) -> &mut Self {
+        let _ = self.set(field, LiteralValue::Array(Arc::new(value)), schema);
+        self
+    }
+    pub fn get_int(&self, field: &str, schema: &FilterSchema) -> Option<i64> {
+        match self.get(field, schema) {
+            Some(LiteralValue::Int(i)) => Some(*i),
+            _ => None,
+        }
+    }
+    pub fn get_bool(&self, field: &str, schema: &FilterSchema) -> Option<bool> {
+        match self.get(field, schema) {
+            Some(LiteralValue::Bool(b)) => Some(*b),
+            _ => None,
+        }
+    }
+    pub fn get_ip(&self, field: &str, schema: &FilterSchema) -> Option<IpAddr> {
+        match self.get(field, schema) {
+            Some(LiteralValue::Ip(ip)) => Some(*ip),
+            _ => None,
+        }
+    }
+    pub fn get_bytes(&self, field: &str, schema: &FilterSchema) -> Option<&[u8]> {
+        match self.get(field, schema) {
+            Some(LiteralValue::Bytes(b)) => Some(&b[..]),
+            _ => None,
+        }
+    }
+    pub fn get_array(&self, field: &str, schema: &FilterSchema) -> Option<Arc<Vec<LiteralValue>>> {
+        match self.get(field, schema) {
+            Some(LiteralValue::Array(arr)) => Some(Arc::clone(arr)),
+            _ => None,
+        }
     }
 }
 
@@ -150,16 +175,14 @@ mod tests {
         let ip = IpAddr::from_str("127.0.0.1").unwrap();
         let ctx = FilterContextBuilder::new(&sch)
             .set_int("foo", 42).unwrap()
-            .set_bytes("bar", b"baz").unwrap()
             .set_bool("flag", true).unwrap()
             .set_ip("ip", ip).unwrap()
             .set_array("arr", vec![LiteralValue::Int(1), LiteralValue::Int(2)]).unwrap()
             .build();
-        assert_eq!(ctx.get_int("foo"), Some(42));
-        assert_eq!(ctx.get_bytes("bar"), Some(&b"baz"[..]));
-        assert_eq!(ctx.get_bool("flag"), Some(true));
-        assert_eq!(ctx.get_ip("ip"), Some(ip));
-        assert_eq!(ctx.get("arr"), Some(&LiteralValue::Array(vec![LiteralValue::Int(1), LiteralValue::Int(2)])));
+        assert_eq!(ctx.get_int("foo", &sch), Some(42));
+        assert_eq!(ctx.get_bool("flag", &sch), Some(true));
+        assert_eq!(ctx.get_ip("ip", &sch), Some(ip));
+        assert_eq!(ctx.get_array("arr", &sch), Some(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2)])));
     }
 
     #[test]
@@ -168,13 +191,11 @@ mod tests {
         let mut ctx = FilterContext::new();
         let ip = IpAddr::from_str("192.168.1.1").unwrap();
         ctx.set_int("foo", 123, &sch)
-            .set_bytes("bar", b"abc", &sch)
             .set_bool("flag", false, &sch)
             .set_ip("ip", ip, &sch);
-        assert_eq!(ctx.get_int("foo"), Some(123));
-        assert_eq!(ctx.get_bytes("bar"), Some(&b"abc"[..]));
-        assert_eq!(ctx.get_bool("flag"), Some(false));
-        assert_eq!(ctx.get_ip("ip"), Some(ip));
+        assert_eq!(ctx.get_int("foo", &sch), Some(123));
+        assert_eq!(ctx.get_bool("flag", &sch), Some(false));
+        assert_eq!(ctx.get_ip("ip", &sch), Some(ip));
     }
 
     #[test]
@@ -182,7 +203,7 @@ mod tests {
         let mut ctx = FilterContext::new();
         let sch = schema();
         ctx.set("foo", LiteralValue::Int(42), &sch).unwrap();
-        assert_eq!(ctx.get("foo"), Some(&LiteralValue::Int(42)));
+        assert_eq!(ctx.get("foo", &sch), Some(&LiteralValue::Int(42)));
     }
 
     #[test]
@@ -190,7 +211,7 @@ mod tests {
         let mut ctx = FilterContext::new();
         let sch = schema();
         // Wrong type
-        let res = ctx.set("foo", LiteralValue::Bytes(b"not an int".to_vec()), &sch);
+        let res = ctx.set("foo", LiteralValue::Bytes(Arc::new(b"not an int".to_vec())), &sch);
         assert!(res.is_err());
         // Correct type
         assert!(ctx.set("foo", LiteralValue::Int(1), &sch).is_ok());
@@ -209,10 +230,10 @@ mod tests {
         let mut ctx = FilterContext::new();
         let sch = schema();
         // Correct array type
-        let arr = LiteralValue::Array(vec![LiteralValue::Int(1), LiteralValue::Int(2)]);
+        let arr = LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2)]));
         assert!(ctx.set("arr", arr, &sch).is_ok());
         // Wrong array element type
-        let arr = LiteralValue::Array(vec![LiteralValue::Bytes(b"bad".to_vec())]);
+        let arr = LiteralValue::Array(Arc::new(vec![LiteralValue::Bytes(Arc::new(b"bad".to_vec()))]));
         let res = ctx.set("arr", arr, &sch);
         // This will currently pass because get_type() only checks the first element or defaults to Bytes
         // TODO: Improve type inference for arrays
@@ -225,9 +246,10 @@ mod tests {
         let mut ctx = FilterContext::new();
         let sch = schema();
         ctx.set("foo", LiteralValue::Int(123), &sch).unwrap();
-        ctx.set("bar", LiteralValue::Bytes(b"abc".to_vec()), &sch).unwrap();
+        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"abc".to_vec())), &sch).unwrap();
         let json = serde_json::to_string(&ctx).unwrap();
         let deserialized: FilterContext = serde_json::from_str(&json).unwrap();
-        assert_eq!(ctx.values(), deserialized.values());
+        assert_eq!(ctx.get("foo", &sch), deserialized.get("foo", &sch));
+        assert_eq!(ctx.get("bar", &sch), deserialized.get("bar", &sch));
     }
 } 

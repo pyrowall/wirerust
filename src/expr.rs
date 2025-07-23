@@ -147,7 +147,7 @@ impl<'a> FilterParser<'a> {
         
         // Try identifier (field reference)
         if let Ok(ident) = self.parse_identifier() {
-            return Ok(FilterExpr::Value(LiteralValue::Bytes(ident.into_bytes())));
+            return Ok(FilterExpr::Value(LiteralValue::Bytes(ident.into_bytes().into())));
         }
         self.pos = start_pos;
         
@@ -185,7 +185,7 @@ impl<'a> FilterParser<'a> {
                         let start_pos = self.pos;
                         let arg = if let Ok(ident) = self.parse_identifier() {
                             // Simple field reference
-                            FilterExpr::Value(LiteralValue::Bytes(ident.into_bytes()))
+                            FilterExpr::Value(LiteralValue::Bytes(ident.into_bytes().into()))
                         } else {
                             // Reset and try as full expression
                             self.pos = start_pos;
@@ -210,7 +210,7 @@ impl<'a> FilterParser<'a> {
                 FilterExpr::List(list)
             } else {
                 // Just an identifier (field reference)
-                FilterExpr::Value(LiteralValue::Bytes(ident.into_bytes()))
+                FilterExpr::Value(LiteralValue::Bytes(ident.into_bytes().into()))
             }
         };
         self.skip_whitespace();
@@ -221,7 +221,7 @@ impl<'a> FilterParser<'a> {
                 // List/set literal as value
                 let list = self.parse_list_literal()?;
                 self.skip_whitespace();
-                FilterExpr::Value(LiteralValue::Array(list))
+                FilterExpr::Value(LiteralValue::Array(list.into()))
             } else {
                 // Try to parse as a full expression or value
                 self.parse_expr_or_value()?
@@ -325,7 +325,7 @@ impl<'a> FilterParser<'a> {
         }
         let s = &self.input[start..end];
         self.consume_char(); // consume closing quote
-        Ok(LiteralValue::Bytes(s.as_bytes().to_vec()))
+        Ok(LiteralValue::Bytes(s.as_bytes().to_vec().into()))
     }
 
     fn parse_int_literal(&mut self) -> Result<LiteralValue, WirerustError> {
@@ -421,7 +421,7 @@ mod tests {
         let expr = FilterParser::parse("foo == 42", &schema()).unwrap();
         match expr {
             FilterExpr::Comparison { left, op, right } => {
-                assert_eq!(*left, FilterExpr::Value(LiteralValue::Bytes(b"foo".to_vec())));
+                assert_eq!(*left, FilterExpr::Value(LiteralValue::Bytes(b"foo".to_vec().into())));
                 assert_eq!(op, ComparisonOp::Eq);
                 assert_eq!(*right, FilterExpr::Value(LiteralValue::Int(42)));
             }

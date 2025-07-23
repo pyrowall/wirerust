@@ -10,6 +10,8 @@ use serde::{Serialize, Deserialize};
 #[non_exhaustive]
 pub struct FilterSchema {
     fields: HashMap<String, FieldType>,
+    field_names: Vec<String>, // index = FieldId
+    field_ids: HashMap<String, usize>, // name -> id
 }
 
 impl FilterSchema {
@@ -18,6 +20,18 @@ impl FilterSchema {
     }
     pub fn fields(&self) -> &HashMap<String, FieldType> {
         &self.fields
+    }
+    /// Get the field ID for a given field name, if it exists.
+    pub fn field_id(&self, name: &str) -> Option<usize> {
+        self.field_ids.get(name).copied()
+    }
+    /// Get the field name for a given field ID, if it exists.
+    pub fn field_name(&self, id: usize) -> Option<&str> {
+        self.field_names.get(id).map(|s| s.as_str())
+    }
+    /// Get the total number of fields.
+    pub fn num_fields(&self) -> usize {
+        self.field_names.len()
     }
 }
 
@@ -35,7 +49,19 @@ impl FilterSchemaBuilder {
         self
     }
     pub fn build(self) -> FilterSchema {
-        FilterSchema { fields: self.fields }
+        let mut field_names = Vec::new();
+        let mut field_ids = HashMap::new();
+        let mut sorted_names: Vec<_> = self.fields.keys().cloned().collect();
+        sorted_names.sort();
+        for name in sorted_names {
+            field_ids.insert(name.clone(), field_names.len());
+            field_names.push(name);
+        }
+        FilterSchema {
+            fields: self.fields,
+            field_names,
+            field_ids,
+        }
     }
 }
 

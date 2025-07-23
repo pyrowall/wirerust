@@ -37,14 +37,14 @@ fn test_filter_matches() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"GET".to_vec()).into()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(80), &schema).unwrap();
     ctx.set(
         "tags",
-        LiteralValue::Array(vec![
-            LiteralValue::Bytes(b"foo".to_vec()),
-            LiteralValue::Bytes(b"bar".to_vec()),
-        ]),
+        LiteralValue::Array(Arc::new(vec![
+            LiteralValue::Bytes(Arc::new(b"foo".to_vec()).into()),
+            LiteralValue::Bytes(Arc::new(b"bar".to_vec()).into()),
+        ]).into()),
         &schema,
     ).unwrap();
 
@@ -60,7 +60,7 @@ fn test_filter_does_not_match() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"GET".to_vec()).into()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(80), &schema).unwrap();
     assert!(!filter.execute(&ctx).unwrap());
 }
@@ -74,14 +74,14 @@ fn test_filter_with_function_call() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"get".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"get".to_vec()).into()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(80), &schema).unwrap();
     ctx.set(
         "tags",
-        LiteralValue::Array(vec![
-            LiteralValue::Bytes(b"foo".to_vec()),
-            LiteralValue::Bytes(b"bar".to_vec()),
-        ]),
+        LiteralValue::Array(Arc::new(vec![
+            LiteralValue::Bytes(Arc::new(b"foo".to_vec()).into()),
+            LiteralValue::Bytes(Arc::new(b"bar".to_vec()).into()),
+        ]).into()),
         &schema,
     ).unwrap();
 
@@ -99,7 +99,7 @@ fn test_regex_matches() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("user_agent", LiteralValue::Bytes(b"Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0".to_vec()), &schema).unwrap();
+    ctx.set("user_agent", LiteralValue::Bytes(Arc::new(b"Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0".to_vec()).into()), &schema).unwrap();
     
     assert!(filter.execute(&ctx).unwrap());
 }
@@ -114,7 +114,7 @@ fn test_regex_does_not_match() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("user_agent", LiteralValue::Bytes(b"Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0".to_vec()), &schema).unwrap();
+    ctx.set("user_agent", LiteralValue::Bytes(Arc::new(b"Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0".to_vec()).into()), &schema).unwrap();
     
     assert!(!filter.execute(&ctx).unwrap());
 }
@@ -129,7 +129,7 @@ fn test_regex_with_simple_pattern() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"POST".to_vec()).into()), &schema).unwrap();
     
     assert!(filter.execute(&ctx).unwrap());
 }
@@ -228,12 +228,12 @@ fn test_simple_logical_operations() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"POST".to_vec()).into()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(443), &schema).unwrap();
     
     let result = filter.execute(&ctx);
     println!("Simple logical operations test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
-    println!("Context values: {:?}", ctx.values());
+    // println!("Context values: {:?}", ctx.values());
     assert!(result.as_ref().unwrap());
 }
 
@@ -248,12 +248,12 @@ fn test_parenthesized_expression() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"POST".to_vec()).into()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(443), &schema).unwrap();
     
     let result = filter.execute(&ctx);
     println!("Parenthesized expression test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
-    println!("Context values: {:?}", ctx.values());
+    // println!("Context values: {:?}", ctx.values());
     assert!(result.as_ref().unwrap());
 }
 
@@ -268,11 +268,11 @@ fn test_or_expression() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"POST".to_vec()).into()), &schema).unwrap();
     
     let result = filter.execute(&ctx);
     println!("OR expression test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
-    println!("Context values: {:?}", ctx.values());
+    // println!("Context values: {:?}", ctx.values());
     assert!(result.as_ref().unwrap());
 }
 
@@ -287,12 +287,12 @@ fn test_mixed_and_or_expression() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"POST".to_vec()).into()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(443), &schema).unwrap();
     
     let result = filter.execute(&ctx);
     println!("Mixed AND/OR expression test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
-    println!("Context values: {:?}", ctx.values());
+    // println!("Context values: {:?}", ctx.values());
     assert!(result.as_ref().unwrap());
 }
 
@@ -311,7 +311,7 @@ fn test_with_enabled_field() {
     
     let result = filter.execute(&ctx);
     println!("Enabled field test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
-    println!("Context values: {:?}", ctx.values());
+    // println!("Context values: {:?}", ctx.values());
     assert!(result.as_ref().unwrap());
 }
 
@@ -326,14 +326,11 @@ fn test_with_len_function() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("headers", LiteralValue::Array(vec![
-        LiteralValue::Int(100),
-        LiteralValue::Int(200),
-    ]), &schema).unwrap();
+    ctx.set("headers", LiteralValue::Array(Arc::new(vec![LiteralValue::Int(100), LiteralValue::Int(200)]).into()), &schema).unwrap();
     
     let result = filter.execute(&ctx);
     println!("Len function test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
-    println!("Context values: {:?}", ctx.values());
+    // println!("Context values: {:?}", ctx.values());
     assert!(result.as_ref().unwrap());
 }
 
@@ -348,13 +345,13 @@ fn test_complex_logical_operations() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"POST".to_vec()).into()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(443), &schema).unwrap();
     ctx.set("enabled", LiteralValue::Bool(true), &schema).unwrap();
     
     let result = filter.execute(&ctx);
     println!("Complex logical operations test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
-    println!("Context values: {:?}", ctx.values());
+    // println!("Context values: {:?}", ctx.values());
     assert!(result.as_ref().unwrap());
 }
 
@@ -367,7 +364,7 @@ fn test_nested_parentheses() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"POST".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"POST".to_vec()).into()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(8080), &schema).unwrap();
     
     assert!(filter.execute(&ctx).unwrap());
@@ -413,11 +410,7 @@ fn test_sum_function() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("headers", LiteralValue::Array(vec![
-        LiteralValue::Int(50),
-        LiteralValue::Int(60),
-        LiteralValue::Int(70),
-    ]), &schema).unwrap();
+    ctx.set("headers", LiteralValue::Array(Arc::new(vec![LiteralValue::Int(50), LiteralValue::Int(60), LiteralValue::Int(70)]).into()), &schema).unwrap();
     
     assert!(filter.execute(&ctx).unwrap());
 }
@@ -431,16 +424,8 @@ fn test_multiple_function_calls() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("tags", LiteralValue::Array(vec![
-        LiteralValue::Bytes(b"tag1".to_vec()),
-        LiteralValue::Bytes(b"tag2".to_vec()),
-        LiteralValue::Bytes(b"tag3".to_vec()),
-    ]), &schema).unwrap();
-    ctx.set("headers", LiteralValue::Array(vec![
-        LiteralValue::Int(60),
-        LiteralValue::Int(60),
-        LiteralValue::Int(60),
-    ]), &schema).unwrap();
+    ctx.set("tags", LiteralValue::Array(Arc::new(vec![LiteralValue::Bytes(Arc::new(b"tag1".to_vec()).into()), LiteralValue::Bytes(Arc::new(b"tag2".to_vec()).into()), LiteralValue::Bytes(Arc::new(b"tag3".to_vec()).into())]).into()), &schema).unwrap();
+    ctx.set("headers", LiteralValue::Array(Arc::new(vec![LiteralValue::Int(60), LiteralValue::Int(60), LiteralValue::Int(60)]).into()), &schema).unwrap();
     
     assert!(filter.execute(&ctx).unwrap());
 }
@@ -455,7 +440,7 @@ fn test_empty_array() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("tags", LiteralValue::Array(vec![]), &schema).unwrap();
+    ctx.set("tags", LiteralValue::Array(Arc::new(vec![]).into()), &schema).unwrap();
     
     assert!(filter.execute(&ctx).unwrap());
 }
@@ -482,9 +467,7 @@ fn test_unknown_function_returns_false() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("tags", LiteralValue::Array(vec![
-        LiteralValue::Bytes(b"tag1".to_vec()),
-    ]), &schema).unwrap();
+    ctx.set("tags", LiteralValue::Array(Arc::new(vec![LiteralValue::Bytes(Arc::new(b"tag1".to_vec()).into())]).into()), &schema).unwrap();
     
     assert!(matches!(filter.execute(&ctx), Err(WirerustError::FunctionError(_))));
 }
@@ -499,7 +482,7 @@ fn test_string_inequality() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"GET".to_vec()).into()), &schema).unwrap();
     
     assert!(filter.execute(&ctx).unwrap());
 }
@@ -513,7 +496,7 @@ fn test_case_insensitive_comparison() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"get".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"get".to_vec()).into()), &schema).unwrap();
     
     assert!(filter.execute(&ctx).unwrap());
 }
@@ -551,19 +534,16 @@ fn test_complex_web_request_filter() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"GET".to_vec()).into()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(443), &schema).unwrap();
     ctx.set("status_code", LiteralValue::Int(200), &schema).unwrap();
     ctx.set("response_time", LiteralValue::Int(1500), &schema).unwrap();
     ctx.set("enabled", LiteralValue::Bool(true), &schema).unwrap();
-    ctx.set("headers", LiteralValue::Array(vec![
-        LiteralValue::Int(100),
-        LiteralValue::Int(200),
-    ]), &schema).unwrap();
+    ctx.set("headers", LiteralValue::Array(Arc::new(vec![LiteralValue::Int(100), LiteralValue::Int(200)]).into()), &schema).unwrap();
     
     let result = filter.execute(&ctx);
     println!("Complex web request filter test result: {}", result.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)));
-    println!("Context values: {:?}", ctx.values());
+    // println!("Context values: {:?}", ctx.values());
     assert!(result.as_ref().unwrap());
 }
 
@@ -578,7 +558,7 @@ fn test_invalid_regex_pattern() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("user_agent", LiteralValue::Bytes(b"test".to_vec()), &schema).unwrap();
+    ctx.set("user_agent", LiteralValue::Bytes(Arc::new(b"test".to_vec()).into()), &schema).unwrap();
     
     // Should match any string
     assert!(filter.execute(&ctx).unwrap());
@@ -632,7 +612,7 @@ fn test_mixed_operators() {
     let filter = CompiledFilter::new(expr, Arc::new(schema.clone()), Arc::new(functions.clone()));
 
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(b"GET".to_vec()), &schema).unwrap();
+    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"GET".to_vec()).into()), &schema).unwrap();
     ctx.set("port", LiteralValue::Int(80), &schema).unwrap();
     ctx.set("status_code", LiteralValue::Int(201), &schema).unwrap();
     ctx.set("response_time", LiteralValue::Int(500), &schema).unwrap();
@@ -663,7 +643,7 @@ proptest! {
     #[test]
     fn prop_type_inference_array_infers_type(vals in pvec(0i64..100, 0..10)) {
         use wirerust::{LiteralValue, FieldType};
-        let arr = LiteralValue::Array(vals.iter().map(|&i| LiteralValue::Int(i)).collect());
+        let arr = LiteralValue::Array(Arc::new(vals.iter().map(|&i| LiteralValue::Int(i)).collect::<Vec<_>>()).into());
         let ty = arr.get_type();
         if vals.is_empty() {
             assert_eq!(ty, FieldType::Array(Box::new(FieldType::Unknown)));
@@ -676,8 +656,8 @@ proptest! {
     fn prop_type_inference_array_mixed_types(ints in pvec(0i64..100, 0..5), strs in pvec(".*", 0..5)) {
         use wirerust::{LiteralValue, FieldType};
         let mut vals: Vec<LiteralValue> = ints.iter().map(|&i| LiteralValue::Int(i)).collect();
-        vals.extend(strs.iter().map(|s| LiteralValue::Bytes(s.as_bytes().to_vec())));
-        let arr = LiteralValue::Array(vals);
+        vals.extend(strs.iter().map(|s| LiteralValue::Bytes(Arc::new(s.as_bytes().to_vec()).into())));
+        let arr = LiteralValue::Array(Arc::new(vals).into());
         let ty = arr.get_type();
         if ints.is_empty() || strs.is_empty() {
             // If only one type, should infer that type
@@ -703,9 +683,9 @@ proptest! {
             map.insert(format!("k_int_{}", i), LiteralValue::Int(*v));
         }
         for (i, s) in strs.iter().enumerate() {
-            map.insert(format!("k_str_{}", i), LiteralValue::Bytes(s.as_bytes().to_vec()));
+            map.insert(format!("k_str_{}", i), LiteralValue::Bytes(Arc::new(s.as_bytes().to_vec()).into()));
         }
-        let val = LiteralValue::Map(map);
+        let val = LiteralValue::Map(Arc::new(map).into());
         let ty = val.get_type();
         if ints.is_empty() || strs.is_empty() {
             if ints.is_empty() && !strs.is_empty() {
@@ -725,7 +705,7 @@ proptest! {
     #[test]
     fn prop_execute_random_filter_and_context(int_val in 0i64..100, str_val in ".{0,16}") {
         use wirerust::*;
-        let schema = FilterSchemaBuilder::new()
+        let _schema = FilterSchemaBuilder::new()
             .field("foo", FieldType::Int)
             .field("bar", FieldType::Bytes)
             .build();
@@ -753,7 +733,7 @@ proptest! {
 #[test]
 fn test_error_reporting_unknown_function() {
     use wirerust::*;
-    let schema = FilterSchemaBuilder::new().field("foo", FieldType::Int).build();
+    let _schema = FilterSchemaBuilder::new().field("foo", FieldType::Int).build();
     let engine = WirerustEngineBuilder::new().field("foo", FieldType::Int).build();
     let filter = engine.parse_and_compile("not_a_function(foo)").unwrap();
     let mut ctx = FilterContext::new();
@@ -765,7 +745,7 @@ fn test_error_reporting_unknown_function() {
 #[test]
 fn test_error_reporting_type_mismatch() {
     use wirerust::*;
-    let schema = FilterSchemaBuilder::new().field("foo", FieldType::Int).build();
+    let _schema = FilterSchemaBuilder::new().field("foo", FieldType::Int).build();
     let engine = WirerustEngineBuilder::new().field("foo", FieldType::Int).build();
     let filter = engine.parse_and_compile("foo == \"not_an_int\"").unwrap();
     let mut ctx = FilterContext::new();

@@ -21,6 +21,7 @@ mod filter;
 mod context;
 mod types;
 mod functions;
+mod ir;
 
 pub use schema::*;
 pub use expr::*;
