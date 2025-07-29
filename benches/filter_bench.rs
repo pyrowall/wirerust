@@ -11,8 +11,8 @@ fn bench_parse_compile_execute(c: &mut Criterion) {
     let engine = WirerustEngine::new((*schema).clone());
     let expr_str = "foo == 42 && bar == \"baz\"";
     let ctx = FilterContextBuilder::new(&schema)
-        .set_int("foo", 42)
-        .set_bytes("bar", b"baz")
+        .set_int("foo", 42).unwrap()
+        .set_bytes("bar", b"baz").unwrap()
         .build();
 
     c.bench_function("parse", |b| {

@@ -5,7 +5,6 @@
 use crate::types::{LiteralValue};
 use crate::types::FieldType;
 use crate::schema::FilterSchema;
-//use std::collections::HashMap; // unused
 use serde::{Serialize, Deserialize};
 use crate::WirerustError;
 use std::net::IpAddr;

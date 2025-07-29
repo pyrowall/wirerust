@@ -3,10 +3,6 @@
 //! This module provides the CompiledFilter type.
 
 use crate::compiler::IrCompiledFilter;
-use crate::schema::FilterSchema;
-use crate::context::FilterContext;
-use crate::WirerustError;
-use std::sync::Arc;
 
 /// A compiled filter, ready for execution.
 pub struct CompiledFilter {
@@ -38,9 +34,11 @@ mod tests {
     use super::*;
     use crate::types::{FieldType, LiteralValue};
     use crate::schema::FilterSchemaBuilder;
+    use crate::schema::FilterSchema;
     use crate::context::FilterContext;
     use crate::expr::{FilterExpr, ComparisonOp};
     use crate::functions::FunctionRegistry;
+    use std::sync::Arc;
 
     fn schema() -> FilterSchema {
         FilterSchemaBuilder::new()
