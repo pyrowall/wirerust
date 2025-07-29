@@ -345,7 +345,7 @@ impl<'a> FilterParser<'a> {
             let s = &self.input[start..self.pos];
             match s.parse::<i64>() {
                 Ok(n) => Ok(LiteralValue::Int(n)),
-                Err(_) => Err(WirerustError::ParseError(format!("Invalid integer literal at position {}", start))),
+                Err(_) => Err(WirerustError::ParseError(format!("Invalid integer literal at position {start}"))),
             }
         } else {
             Err(WirerustError::ParseError(format!("Expected integer literal at position {}", self.pos)))
@@ -383,7 +383,7 @@ impl<'a> FilterParser<'a> {
     }
 
     fn consume(&mut self, s: &str) -> bool {
-        if self.input[self.pos..].as_bytes().starts_with(s.as_bytes()) {
+        if self.input.as_bytes()[self.pos..].starts_with(s.as_bytes()) {
             self.pos += s.len();
             true
         } else {

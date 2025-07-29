@@ -105,14 +105,20 @@ pub struct WirerustEngineBuilder {
     use_builtins: bool,
 }
 
-impl WirerustEngineBuilder {
-    /// Create a new engine builder.
-    pub fn new() -> Self {
+impl Default for WirerustEngineBuilder {
+    fn default() -> Self {
         Self {
             schema_builder: FilterSchemaBuilder::new(),
             functions: FunctionRegistry::new(),
             use_builtins: true,
         }
+    }
+}
+
+impl WirerustEngineBuilder {
+    /// Create a new engine builder.
+    pub fn new() -> Self {
+        Self::default()
     }
     /// Add a field to the schema.
     pub fn field(mut self, name: impl Into<String>, ty: FieldType) -> Self {
@@ -149,7 +155,6 @@ impl WirerustEngineBuilder {
 ///     .field("bar", FieldType::Bytes)
 ///     .build();
 /// ```
-
 #[cfg(test)]
 mod tests {
     use super::*;

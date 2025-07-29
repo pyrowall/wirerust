@@ -10,7 +10,7 @@ use crate::WirerustError;
 use std::net::IpAddr;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FilterContext {
     field_values: Vec<Option<LiteralValue>>, // index = FieldId
 }
@@ -51,9 +51,7 @@ impl<'a> FilterContextBuilder<'a> {
 
 impl FilterContext {
     pub fn new() -> Self {
-        Self {
-            field_values: Vec::new(),
-        }
+        Self::default()
     }
     /// Set a field value by field ID.
     pub fn set_by_id(&mut self, field_id: usize, value: LiteralValue) {
@@ -86,7 +84,7 @@ impl FilterContext {
                     }
                     Ok(())
                 } else {
-                    Err(WirerustError::TypeError(format!("Type mismatch for field '{}': expected {:?}, got {:?}", field, expected_type, value_type)))
+                    Err(WirerustError::TypeError(format!("Type mismatch for field '{field}': expected {expected_type:?}, got {value_type:?}")))
                 }
             }
             None => Err(WirerustError::FieldNotFound(field.to_string())),
@@ -154,7 +152,7 @@ mod tests {
     use super::*;
     use crate::types::{FieldType, LiteralValue};
     use crate::schema::FilterSchemaBuilder;
-    use serde_json;
+
     use std::net::IpAddr;
     use std::str::FromStr;
 

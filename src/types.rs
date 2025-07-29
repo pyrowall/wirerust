@@ -151,7 +151,7 @@ mod tests {
     use super::*;
     use std::net::IpAddr;
     use std::str::FromStr;
-    use serde_json;
+
 
     #[test]
     fn test_field_type_is_primitive() {

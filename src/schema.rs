@@ -69,7 +69,7 @@ impl FilterSchemaBuilder {
 mod tests {
     use super::*;
     use crate::types::FieldType;
-    use serde_json;
+
 
     #[test]
     fn test_field_registration_and_retrieval() {

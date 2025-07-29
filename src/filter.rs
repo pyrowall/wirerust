@@ -51,14 +51,14 @@ mod tests {
         let mut ctx = FilterContext::new();
         let sch = schema();
         ctx.set("foo", LiteralValue::Int(42), &sch).unwrap();
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"baz".to_vec()).into()), &sch).unwrap();
+        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"baz".to_vec())), &sch).unwrap();
         ctx
     }
 
     #[test]
     fn test_compiled_filter_execute_true() {
         let expr = FilterExpr::Comparison {
-            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec()).into()))),
+            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec())))),
             op: ComparisonOp::Eq,
             right: Box::new(FilterExpr::Value(LiteralValue::Int(42))),
         };
@@ -69,7 +69,7 @@ mod tests {
     #[test]
     fn test_compiled_filter_execute_false() {
         let expr = FilterExpr::Comparison {
-            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec()).into()))),
+            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec())))),
             op: ComparisonOp::Eq,
             right: Box::new(FilterExpr::Value(LiteralValue::Int(0))),
         };
@@ -80,7 +80,7 @@ mod tests {
     #[test]
     fn test_compiled_filter_schema_access() {
         let expr = FilterExpr::Comparison {
-            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec()).into()))),
+            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec())))),
             op: ComparisonOp::Eq,
             right: Box::new(FilterExpr::Value(LiteralValue::Int(42))),
         };

@@ -10,6 +10,7 @@ pub trait FilterFunction: Send + Sync {
     fn call(&self, args: &[LiteralValue]) -> Option<LiteralValue>;
 }
 
+#[derive(Default)]
 pub struct FunctionRegistry {
     functions: HashMap<String, Arc<dyn FilterFunction>>,
     function_names: Vec<String>, // index = FunctionId
@@ -18,11 +19,7 @@ pub struct FunctionRegistry {
 
 impl FunctionRegistry {
     pub fn new() -> Self {
-        Self {
-            functions: HashMap::new(),
-            function_names: Vec::new(),
-            function_ids: HashMap::new(),
-        }
+        Self::default()
     }
     /// Register a function and assign it a unique ID if not already present.
     pub fn register<F>(&mut self, name: impl Into<String>, func: F)
@@ -99,30 +96,30 @@ macro_rules! builtin_functions {
 
 builtin_functions! {
     LenFunction: "len", args => {
-        if let Some(LiteralValue::Array(arr)) = args.get(0) {
+        if let Some(LiteralValue::Array(arr)) = args.first() {
             Some(LiteralValue::Int(arr.len() as i64))
         } else {
             None
         }
     },
     UpperFunction: "upper", args => {
-        if let Some(LiteralValue::Bytes(bytes)) = args.get(0) {
-            let s = String::from_utf8_lossy(&bytes).to_uppercase();
-            Some(LiteralValue::Bytes(Arc::new(s.into_bytes()).into()))
+        if let Some(LiteralValue::Bytes(bytes)) = args.first() {
+            let s = String::from_utf8_lossy(bytes).to_uppercase();
+            Some(LiteralValue::Bytes(Arc::new(s.into_bytes())))
         } else {
             None
         }
     },
     LowerFunction: "lower", args => {
-        if let Some(LiteralValue::Bytes(bytes)) = args.get(0) {
-            let s = String::from_utf8_lossy(&bytes).to_lowercase();
-            Some(LiteralValue::Bytes(Arc::new(s.into_bytes()).into()))
+        if let Some(LiteralValue::Bytes(bytes)) = args.first() {
+            let s = String::from_utf8_lossy(bytes).to_lowercase();
+            Some(LiteralValue::Bytes(Arc::new(s.into_bytes())))
         } else {
             None
         }
     },
     SumFunction: "sum", args => {
-        if let Some(LiteralValue::Array(arr)) = args.get(0) {
+        if let Some(LiteralValue::Array(arr)) = args.first() {
             let sum: i64 = arr.iter().filter_map(|v| if let LiteralValue::Int(i) = v { Some(*i) } else { None }).sum();
             Some(LiteralValue::Int(sum))
         } else {
@@ -130,7 +127,7 @@ builtin_functions! {
         }
     },
     StartsWithFunction: "starts_with", args => {
-        if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(prefix))) = (args.get(0), args.get(1)) {
+        if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(prefix))) = (args.first(), args.get(1)) {
             let h = String::from_utf8_lossy(haystack);
             let p = String::from_utf8_lossy(prefix);
             Some(LiteralValue::Bool(h.starts_with(&*p)))
@@ -139,7 +136,7 @@ builtin_functions! {
         }
     },
     EndsWithFunction: "ends_with", args => {
-        if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(suffix))) = (args.get(0), args.get(1)) {
+        if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(suffix))) = (args.first(), args.get(1)) {
             let h = String::from_utf8_lossy(haystack);
             let s = String::from_utf8_lossy(suffix);
             Some(LiteralValue::Bool(h.ends_with(&*s)))
@@ -176,30 +173,30 @@ impl BuiltinFunctionId {
 pub fn call_builtin(id: BuiltinFunctionId, args: &[LiteralValue]) -> Option<LiteralValue> {
     match id {
         BuiltinFunctionId::Len => {
-            if let Some(LiteralValue::Array(arr)) = args.get(0) {
+            if let Some(LiteralValue::Array(arr)) = args.first() {
                 Some(LiteralValue::Int(arr.len() as i64))
             } else {
                 None
             }
         }
         BuiltinFunctionId::Upper => {
-            if let Some(LiteralValue::Bytes(bytes)) = args.get(0) {
-                let s = String::from_utf8_lossy(&bytes).to_uppercase();
-                Some(LiteralValue::Bytes(Arc::new(s.into_bytes()).into()))
+            if let Some(LiteralValue::Bytes(bytes)) = args.first() {
+                let s = String::from_utf8_lossy(bytes).to_uppercase();
+                Some(LiteralValue::Bytes(Arc::new(s.into_bytes())))
             } else {
                 None
             }
         }
         BuiltinFunctionId::Lower => {
-            if let Some(LiteralValue::Bytes(bytes)) = args.get(0) {
-                let s = String::from_utf8_lossy(&bytes).to_lowercase();
-                Some(LiteralValue::Bytes(Arc::new(s.into_bytes()).into()))
+            if let Some(LiteralValue::Bytes(bytes)) = args.first() {
+                let s = String::from_utf8_lossy(bytes).to_lowercase();
+                Some(LiteralValue::Bytes(Arc::new(s.into_bytes())))
             } else {
                 None
             }
         }
         BuiltinFunctionId::Sum => {
-            if let Some(LiteralValue::Array(arr)) = args.get(0) {
+            if let Some(LiteralValue::Array(arr)) = args.first() {
                 let sum: i64 = arr.iter().filter_map(|v| if let LiteralValue::Int(i) = v { Some(*i) } else { None }).sum();
                 Some(LiteralValue::Int(sum))
             } else {
@@ -207,7 +204,7 @@ pub fn call_builtin(id: BuiltinFunctionId, args: &[LiteralValue]) -> Option<Lite
             }
         }
         BuiltinFunctionId::StartsWith => {
-            if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(prefix))) = (args.get(0), args.get(1)) {
+            if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(prefix))) = (args.first(), args.get(1)) {
                 let h = String::from_utf8_lossy(haystack);
                 let p = String::from_utf8_lossy(prefix);
                 Some(LiteralValue::Bool(h.starts_with(&*p)))
@@ -216,7 +213,7 @@ pub fn call_builtin(id: BuiltinFunctionId, args: &[LiteralValue]) -> Option<Lite
             }
         }
         BuiltinFunctionId::EndsWith => {
-            if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(suffix))) = (args.get(0), args.get(1)) {
+            if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(suffix))) = (args.first(), args.get(1)) {
                 let h = String::from_utf8_lossy(haystack);
                 let s = String::from_utf8_lossy(suffix);
                 Some(LiteralValue::Bool(h.ends_with(&*s)))
@@ -234,7 +231,7 @@ mod tests {
     fn test_register_and_call_len() {
         let mut reg = FunctionRegistry::new();
         reg.register("len", LenFunction);
-        let arr = LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2)]).into());
+        let arr = LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2)]));
         let result = reg.get("len").unwrap().call(&[arr]);
         assert_eq!(result, Some(LiteralValue::Int(2)));
     }
@@ -242,15 +239,15 @@ mod tests {
     fn test_upper_function() {
         let mut reg = FunctionRegistry::new();
         reg.register("upper", UpperFunction);
-        let val = LiteralValue::Bytes(Arc::new(b"hello".to_vec()).into());
+        let val = LiteralValue::Bytes(Arc::new(b"hello".to_vec()));
         let result = reg.get("upper").unwrap().call(&[val]);
-        assert_eq!(result, Some(LiteralValue::Bytes(Arc::new(b"HELLO".to_vec()).into())));
+        assert_eq!(result, Some(LiteralValue::Bytes(Arc::new(b"HELLO".to_vec()))));
     }
     #[test]
     fn test_sum_function() {
         let mut reg = FunctionRegistry::new();
         reg.register("sum", SumFunction);
-        let arr = LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2), LiteralValue::Int(3)]).into());
+        let arr = LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2), LiteralValue::Int(3)]));
         let result = reg.get("sum").unwrap().call(&[arr]);
         assert_eq!(result, Some(LiteralValue::Int(6)));
     }
@@ -258,9 +255,9 @@ mod tests {
     fn test_starts_with_function() {
         let mut reg = FunctionRegistry::new();
         reg.register("starts_with", StartsWithFunction);
-        let val = LiteralValue::Bytes(Arc::new(b"foobar".to_vec()).into());
-        let prefix = LiteralValue::Bytes(Arc::new(b"foo".to_vec()).into());
-        let wrong = LiteralValue::Bytes(Arc::new(b"bar".to_vec()).into());
+        let val = LiteralValue::Bytes(Arc::new(b"foobar".to_vec()));
+        let prefix = LiteralValue::Bytes(Arc::new(b"foo".to_vec()));
+        let wrong = LiteralValue::Bytes(Arc::new(b"bar".to_vec()));
         assert_eq!(reg.get("starts_with").unwrap().call(&[val.clone(), prefix.clone()]), Some(LiteralValue::Bool(true)));
         assert_eq!(reg.get("starts_with").unwrap().call(&[val.clone(), wrong.clone()]), Some(LiteralValue::Bool(false)));
         assert_eq!(reg.get("starts_with").unwrap().call(&[wrong.clone(), prefix.clone()]), Some(LiteralValue::Bool(false)));
@@ -269,9 +266,9 @@ mod tests {
     fn test_ends_with_function() {
         let mut reg = FunctionRegistry::new();
         reg.register("ends_with", EndsWithFunction);
-        let val = LiteralValue::Bytes(Arc::new(b"foobar".to_vec()).into());
-        let suffix = LiteralValue::Bytes(Arc::new(b"bar".to_vec()).into());
-        let wrong = LiteralValue::Bytes(Arc::new(b"foo".to_vec()).into());
+        let val = LiteralValue::Bytes(Arc::new(b"foobar".to_vec()));
+        let suffix = LiteralValue::Bytes(Arc::new(b"bar".to_vec()));
+        let wrong = LiteralValue::Bytes(Arc::new(b"foo".to_vec()));
         assert_eq!(reg.get("ends_with").unwrap().call(&[val.clone(), suffix.clone()]), Some(LiteralValue::Bool(true)));
         assert_eq!(reg.get("ends_with").unwrap().call(&[val.clone(), wrong.clone()]), Some(LiteralValue::Bool(false)));
         assert_eq!(reg.get("ends_with").unwrap().call(&[wrong.clone(), suffix.clone()]), Some(LiteralValue::Bool(false)));
