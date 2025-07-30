@@ -119,17 +119,17 @@ let filter = engine.parse_and_compile(
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Filter String │───▶│ AST (FilterExpr)│───▶│ CompiledFilter  │
+│  Filter String  │───▶│ AST (FilterExpr)│───▶│  CompiledFilter │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │                      │
                                 ▼                      ▼
                        ┌─────────────────┐    ┌─────────────────┐
-                       │   Type Checker  │    │   Execution     │
+                       │   Type Checker  │    │    Execution    │
                        └─────────────────┘    └─────────────────┘
                                 │                      │
                                 ▼                      ▼
                        ┌─────────────────┐    ┌─────────────────┐
-                       │   Schema        │    │   Context       │
+                       │     Schema      │    │     Context     │
                        └─────────────────┘    └─────────────────┘
 ```
 
