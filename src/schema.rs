@@ -3,14 +3,14 @@
 //! This module provides the FilterSchema type and builder for defining available fields and types.
 
 use crate::types::FieldType;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct FilterSchema {
     fields: HashMap<String, FieldType>,
-    field_names: Vec<String>, // index = FieldId
+    field_names: Vec<String>,          // index = FieldId
     field_ids: HashMap<String, usize>, // name -> id
 }
 
@@ -42,7 +42,9 @@ pub struct FilterSchemaBuilder {
 
 impl FilterSchemaBuilder {
     pub fn new() -> Self {
-        Self { fields: HashMap::new() }
+        Self {
+            fields: HashMap::new(),
+        }
     }
     pub fn field(mut self, name: impl Into<String>, ty: FieldType) -> Self {
         self.fields.insert(name.into(), ty);
@@ -69,7 +71,6 @@ impl FilterSchemaBuilder {
 mod tests {
     use super::*;
     use crate::types::FieldType;
-
 
     #[test]
     fn test_field_registration_and_retrieval() {
@@ -114,4 +115,4 @@ mod tests {
         // Last one wins
         assert_eq!(schema.get_field_type("foo"), Some(&FieldType::Bytes));
     }
-} 
+}

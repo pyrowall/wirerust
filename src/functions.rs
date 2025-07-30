@@ -13,7 +13,7 @@ pub trait FilterFunction: Send + Sync {
 #[derive(Default)]
 pub struct FunctionRegistry {
     functions: HashMap<String, Arc<dyn FilterFunction>>,
-    function_names: Vec<String>, // index = FunctionId
+    function_names: Vec<String>,          // index = FunctionId
     function_ids: HashMap<String, usize>, // name -> id
 }
 
@@ -28,7 +28,8 @@ impl FunctionRegistry {
     {
         let name = name.into();
         if !self.function_ids.contains_key(&name) {
-            self.function_ids.insert(name.clone(), self.function_names.len());
+            self.function_ids
+                .insert(name.clone(), self.function_names.len());
             self.function_names.push(name.clone());
         }
         self.functions.insert(name, Arc::new(func));
@@ -66,7 +67,9 @@ impl FunctionRegistry {
     }
     /// Get a function by ID.
     pub fn get_by_id(&self, id: usize) -> Option<&Arc<dyn FilterFunction>> {
-        self.function_names.get(id).and_then(|name| self.functions.get(name))
+        self.function_names
+            .get(id)
+            .and_then(|name| self.functions.get(name))
     }
 }
 
@@ -197,14 +200,25 @@ pub fn call_builtin(id: BuiltinFunctionId, args: &[LiteralValue]) -> Option<Lite
         }
         BuiltinFunctionId::Sum => {
             if let Some(LiteralValue::Array(arr)) = args.first() {
-                let sum: i64 = arr.iter().filter_map(|v| if let LiteralValue::Int(i) = v { Some(*i) } else { None }).sum();
+                let sum: i64 = arr
+                    .iter()
+                    .filter_map(|v| {
+                        if let LiteralValue::Int(i) = v {
+                            Some(*i)
+                        } else {
+                            None
+                        }
+                    })
+                    .sum();
                 Some(LiteralValue::Int(sum))
             } else {
                 None
             }
         }
         BuiltinFunctionId::StartsWith => {
-            if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(prefix))) = (args.first(), args.get(1)) {
+            if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(prefix))) =
+                (args.first(), args.get(1))
+            {
                 let h = String::from_utf8_lossy(haystack);
                 let p = String::from_utf8_lossy(prefix);
                 Some(LiteralValue::Bool(h.starts_with(&*p)))
@@ -213,7 +227,9 @@ pub fn call_builtin(id: BuiltinFunctionId, args: &[LiteralValue]) -> Option<Lite
             }
         }
         BuiltinFunctionId::EndsWith => {
-            if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(suffix))) = (args.first(), args.get(1)) {
+            if let (Some(LiteralValue::Bytes(haystack)), Some(LiteralValue::Bytes(suffix))) =
+                (args.first(), args.get(1))
+            {
                 let h = String::from_utf8_lossy(haystack);
                 let s = String::from_utf8_lossy(suffix);
                 Some(LiteralValue::Bool(h.ends_with(&*s)))
@@ -241,13 +257,20 @@ mod tests {
         reg.register("upper", UpperFunction);
         let val = LiteralValue::Bytes(Arc::new(b"hello".to_vec()));
         let result = reg.get("upper").unwrap().call(&[val]);
-        assert_eq!(result, Some(LiteralValue::Bytes(Arc::new(b"HELLO".to_vec()))));
+        assert_eq!(
+            result,
+            Some(LiteralValue::Bytes(Arc::new(b"HELLO".to_vec())))
+        );
     }
     #[test]
     fn test_sum_function() {
         let mut reg = FunctionRegistry::new();
         reg.register("sum", SumFunction);
-        let arr = LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2), LiteralValue::Int(3)]));
+        let arr = LiteralValue::Array(Arc::new(vec![
+            LiteralValue::Int(1),
+            LiteralValue::Int(2),
+            LiteralValue::Int(3),
+        ]));
         let result = reg.get("sum").unwrap().call(&[arr]);
         assert_eq!(result, Some(LiteralValue::Int(6)));
     }
@@ -258,9 +281,24 @@ mod tests {
         let val = LiteralValue::Bytes(Arc::new(b"foobar".to_vec()));
         let prefix = LiteralValue::Bytes(Arc::new(b"foo".to_vec()));
         let wrong = LiteralValue::Bytes(Arc::new(b"bar".to_vec()));
-        assert_eq!(reg.get("starts_with").unwrap().call(&[val.clone(), prefix.clone()]), Some(LiteralValue::Bool(true)));
-        assert_eq!(reg.get("starts_with").unwrap().call(&[val.clone(), wrong.clone()]), Some(LiteralValue::Bool(false)));
-        assert_eq!(reg.get("starts_with").unwrap().call(&[wrong.clone(), prefix.clone()]), Some(LiteralValue::Bool(false)));
+        assert_eq!(
+            reg.get("starts_with")
+                .unwrap()
+                .call(&[val.clone(), prefix.clone()]),
+            Some(LiteralValue::Bool(true))
+        );
+        assert_eq!(
+            reg.get("starts_with")
+                .unwrap()
+                .call(&[val.clone(), wrong.clone()]),
+            Some(LiteralValue::Bool(false))
+        );
+        assert_eq!(
+            reg.get("starts_with")
+                .unwrap()
+                .call(&[wrong.clone(), prefix.clone()]),
+            Some(LiteralValue::Bool(false))
+        );
     }
     #[test]
     fn test_ends_with_function() {
@@ -269,9 +307,24 @@ mod tests {
         let val = LiteralValue::Bytes(Arc::new(b"foobar".to_vec()));
         let suffix = LiteralValue::Bytes(Arc::new(b"bar".to_vec()));
         let wrong = LiteralValue::Bytes(Arc::new(b"foo".to_vec()));
-        assert_eq!(reg.get("ends_with").unwrap().call(&[val.clone(), suffix.clone()]), Some(LiteralValue::Bool(true)));
-        assert_eq!(reg.get("ends_with").unwrap().call(&[val.clone(), wrong.clone()]), Some(LiteralValue::Bool(false)));
-        assert_eq!(reg.get("ends_with").unwrap().call(&[wrong.clone(), suffix.clone()]), Some(LiteralValue::Bool(false)));
+        assert_eq!(
+            reg.get("ends_with")
+                .unwrap()
+                .call(&[val.clone(), suffix.clone()]),
+            Some(LiteralValue::Bool(true))
+        );
+        assert_eq!(
+            reg.get("ends_with")
+                .unwrap()
+                .call(&[val.clone(), wrong.clone()]),
+            Some(LiteralValue::Bool(false))
+        );
+        assert_eq!(
+            reg.get("ends_with")
+                .unwrap()
+                .call(&[wrong.clone(), suffix.clone()]),
+            Some(LiteralValue::Bool(false))
+        );
     }
     #[test]
     fn test_register_closure() {
@@ -280,4 +333,4 @@ mod tests {
         let result = reg.get("always_true").unwrap().call(&[]);
         assert_eq!(result, Some(LiteralValue::Bool(true)));
     }
-} 
+}

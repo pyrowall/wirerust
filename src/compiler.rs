@@ -2,14 +2,14 @@
 //!
 //! This module provides traits and implementations for compiling filter expressions.
 
-use crate::expr::{FilterExpr, LogicalOp, ComparisonOp};
 use crate::context::FilterContext;
+use crate::expr::{ComparisonOp, FilterExpr, LogicalOp};
+use crate::functions::{call_builtin, BuiltinFunctionId, FunctionRegistry};
+use crate::ir::{Instruction, IrStack};
 use crate::schema::FilterSchema;
 use crate::types::LiteralValue;
-use crate::functions::{FunctionRegistry, BuiltinFunctionId, call_builtin};
 use crate::WirerustError;
 use std::sync::Arc;
-use crate::ir::{Instruction, IrStack};
 
 /// A compiled filter in IR form.
 pub struct IrCompiledFilter {
@@ -27,7 +27,10 @@ impl IrCompiledFilter {
         while pc < bytecode.len() {
             match &bytecode[pc] {
                 Instruction::LoadField(fid) => {
-                    let val = ctx.get_by_id(*fid).cloned().unwrap_or(LiteralValue::Bool(false));
+                    let val = ctx
+                        .get_by_id(*fid)
+                        .cloned()
+                        .unwrap_or(LiteralValue::Bool(false));
                     stack.push(val);
                 }
                 Instruction::LoadLiteral(lit) => {
@@ -39,14 +42,22 @@ impl IrCompiledFilter {
                     // Fast-path for built-in functions
                     if let Some(name) = self.functions.function_name(*fid) {
                         if let Some(builtin_id) = BuiltinFunctionId::from_name(name) {
-                            let result = call_builtin(builtin_id, &args).ok_or_else(|| WirerustError::FunctionError(format!("Builtin function call failed for {name}")))?;
+                            let result = call_builtin(builtin_id, &args).ok_or_else(|| {
+                                WirerustError::FunctionError(format!(
+                                    "Builtin function call failed for {name}"
+                                ))
+                            })?;
                             stack.push(result);
                             pc += 1;
                             continue;
                         }
                     }
-                    let func = self.functions.get_by_id(*fid).ok_or_else(|| WirerustError::FunctionError(format!("Function ID {fid} not found")))?;
-                    let result = func.call(&args).ok_or_else(|| WirerustError::FunctionError(format!("Function call failed for ID {fid}")))?;
+                    let func = self.functions.get_by_id(*fid).ok_or_else(|| {
+                        WirerustError::FunctionError(format!("Function ID {fid} not found"))
+                    })?;
+                    let result = func.call(&args).ok_or_else(|| {
+                        WirerustError::FunctionError(format!("Function call failed for ID {fid}"))
+                    })?;
                     stack.push(result);
                 }
                 Instruction::CompareEq => {
@@ -136,7 +147,9 @@ impl IrCompiledFilter {
         match stack.pop() {
             Some(LiteralValue::Bool(b)) => Ok(b),
             Some(other) => Ok(to_bool(&other)),
-            None => Err(WirerustError::ExecutionError("Empty stack after execution".into())),
+            None => Err(WirerustError::ExecutionError(
+                "Empty stack after execution".into(),
+            )),
         }
     }
 }
@@ -156,7 +169,12 @@ pub struct DefaultCompiler;
 
 impl DefaultCompiler {
     /// Compile a filter expression into IR bytecode.
-    pub fn compile_ir(expr: &FilterExpr, schema: &FilterSchema, functions: &FunctionRegistry, code: &mut Vec<Instruction>) {
+    pub fn compile_ir(
+        expr: &FilterExpr,
+        schema: &FilterSchema,
+        functions: &FunctionRegistry,
+        code: &mut Vec<Instruction>,
+    ) {
         match expr {
             FilterExpr::LogicalOp { op, left, right } => {
                 Self::compile_ir(left, schema, functions, code);
@@ -179,8 +197,12 @@ impl DefaultCompiler {
                     ComparisonOp::In => code.push(Instruction::CompareIn),
                     ComparisonOp::NotIn => code.push(Instruction::CompareNotIn),
                     ComparisonOp::Matches => code.push(Instruction::CompareMatches),
-                    ComparisonOp::Wildcard => code.push(Instruction::CompareWildcard { strict: false }),
-                    ComparisonOp::StrictWildcard => code.push(Instruction::CompareWildcard { strict: true }),
+                    ComparisonOp::Wildcard => {
+                        code.push(Instruction::CompareWildcard { strict: false })
+                    }
+                    ComparisonOp::StrictWildcard => {
+                        code.push(Instruction::CompareWildcard { strict: true })
+                    }
                     ComparisonOp::Contains => code.push(Instruction::CompareContains),
                 }
             }
@@ -212,12 +234,18 @@ impl DefaultCompiler {
                 }
             }
             FilterExpr::List(vals) => {
-                code.push(Instruction::LoadLiteral(LiteralValue::Array(Arc::new(vals.clone()))));
+                code.push(Instruction::LoadLiteral(LiteralValue::Array(Arc::new(
+                    vals.clone(),
+                ))));
             }
         }
     }
 
-    pub fn compile(expr: FilterExpr, schema: Arc<FilterSchema>, functions: Arc<FunctionRegistry>) -> IrCompiledFilter {
+    pub fn compile(
+        expr: FilterExpr,
+        schema: Arc<FilterSchema>,
+        functions: Arc<FunctionRegistry>,
+    ) -> IrCompiledFilter {
         let mut bytecode: Vec<Instruction> = Vec::new();
         Self::compile_ir(&expr, &schema, &functions, &mut bytecode);
         IrCompiledFilter {
@@ -227,7 +255,6 @@ impl DefaultCompiler {
         }
     }
 }
-
 
 // Helper for ordered comparisons
 fn cmp_ord<F>(a: &LiteralValue, b: &LiteralValue, cmp: F) -> bool
@@ -255,7 +282,8 @@ fn cmp_matches(a: &LiteralValue, b: &LiteralValue) -> bool {
         (LiteralValue::Bytes(bytes), LiteralValue::Bytes(pattern)) => {
             if let (Ok(s), Ok(pat)) = (std::str::from_utf8(bytes), std::str::from_utf8(pattern)) {
                 // Use regex crate if available, else fallback to substring
-                #[cfg(feature = "regex")] {
+                #[cfg(feature = "regex")]
+                {
                     if let Ok(re) = regex::Regex::new(pat) {
                         re.is_match(s)
                     } else {
@@ -343,12 +371,12 @@ fn cmp_contains(a: &LiteralValue, b: &LiteralValue) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{FieldType, LiteralValue};
-    use crate::schema::FilterSchemaBuilder;
     use crate::context::FilterContext;
-    use crate::expr::{FilterExpr, ComparisonOp, LogicalOp};
-    use crate::functions::{FunctionRegistry, LenFunction};
     use crate::expr::FilterParser;
+    use crate::expr::{ComparisonOp, FilterExpr, LogicalOp};
+    use crate::functions::{FunctionRegistry, LenFunction};
+    use crate::schema::FilterSchemaBuilder;
+    use crate::types::{FieldType, LiteralValue};
 
     fn schema() -> FilterSchema {
         FilterSchemaBuilder::new()
@@ -362,19 +390,28 @@ mod tests {
         let mut ctx = FilterContext::new();
         let sch = schema();
         ctx.set("foo", LiteralValue::Int(42), &sch).unwrap();
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"baz".to_vec())), &sch).unwrap();
-        ctx.set("arr", LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2)])), &sch).unwrap();
+        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"baz".to_vec())), &sch)
+            .unwrap();
+        ctx.set(
+            "arr",
+            LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2)])),
+            &sch,
+        )
+        .unwrap();
         ctx
     }
 
     #[test]
     fn test_compile_and_execute_comparison_eq() {
         let expr = FilterExpr::Comparison {
-            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec())))),
+            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(
+                b"foo".to_vec(),
+            )))),
             op: ComparisonOp::Eq,
             right: Box::new(FilterExpr::Value(LiteralValue::Int(42))),
         };
-        let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
+        let filter =
+            DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         assert!(filter.execute(&context()).unwrap());
     }
 
@@ -383,39 +420,55 @@ mod tests {
         let expr = FilterExpr::LogicalOp {
             op: LogicalOp::And,
             left: Box::new(FilterExpr::Comparison {
-                left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec())))),
+                left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(
+                    b"foo".to_vec(),
+                )))),
                 op: ComparisonOp::Eq,
                 right: Box::new(FilterExpr::Value(LiteralValue::Int(42))),
             }),
             right: Box::new(FilterExpr::Comparison {
-                left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"bar".to_vec())))),
+                left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(
+                    b"bar".to_vec(),
+                )))),
                 op: ComparisonOp::Eq,
-                right: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"baz".to_vec())))),
+                right: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(
+                    b"baz".to_vec(),
+                )))),
             }),
         };
-        let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
+        let filter =
+            DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         assert!(filter.execute(&context()).unwrap());
     }
 
     #[test]
     fn test_compile_and_execute_not() {
         let expr = FilterExpr::Not(Box::new(FilterExpr::Comparison {
-            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec())))),
+            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(
+                b"foo".to_vec(),
+            )))),
             op: ComparisonOp::Eq,
             right: Box::new(FilterExpr::Value(LiteralValue::Int(0))),
         }));
-        let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
+        let filter =
+            DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         assert!(filter.execute(&context()).unwrap());
     }
 
     #[test]
     fn test_compile_and_execute_in() {
         let expr = FilterExpr::Comparison {
-            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec())))),
+            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(
+                b"foo".to_vec(),
+            )))),
             op: ComparisonOp::In,
-            right: Box::new(FilterExpr::Value(LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(42)])))),
+            right: Box::new(FilterExpr::Value(LiteralValue::Array(Arc::new(vec![
+                LiteralValue::Int(1),
+                LiteralValue::Int(42),
+            ])))),
         };
-        let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
+        let filter =
+            DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         assert!(filter.execute(&context()).unwrap());
     }
 
@@ -425,7 +478,10 @@ mod tests {
         functions.register("len", LenFunction);
         let expr = FilterExpr::FunctionCall {
             name: "len".to_string(),
-            args: vec![FilterExpr::Value(LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2)])))],
+            args: vec![FilterExpr::Value(LiteralValue::Array(Arc::new(vec![
+                LiteralValue::Int(1),
+                LiteralValue::Int(2),
+            ])))],
         };
         let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(functions));
         // len([1,2]) returns Int(2), which converts to true via to_bool since 2 != 0
@@ -435,97 +491,195 @@ mod tests {
     #[test]
     fn test_compile_and_execute_unknown_field() {
         let expr = FilterExpr::Comparison {
-            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"unknown".to_vec())))),
+            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(
+                b"unknown".to_vec(),
+            )))),
             op: ComparisonOp::Eq,
             right: Box::new(FilterExpr::Value(LiteralValue::Int(1))),
         };
-        let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
+        let filter =
+            DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         assert!(!filter.execute(&context()).unwrap());
     }
 
     #[test]
     fn test_compile_and_execute_wrong_type() {
         let expr = FilterExpr::Comparison {
-            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"foo".to_vec())))),
+            left: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(
+                b"foo".to_vec(),
+            )))),
             op: ComparisonOp::Eq,
-            right: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(b"not an int".to_vec())))),
+            right: Box::new(FilterExpr::Value(LiteralValue::Bytes(Arc::new(
+                b"not an int".to_vec(),
+            )))),
         };
-        let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
+        let filter =
+            DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         assert!(!filter.execute(&context()).unwrap());
     }
 
     #[test]
     fn test_compile_and_execute_contains_string() {
         let expr = FilterParser::parse("bar contains \"oba\"", &schema()).unwrap();
-        let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
+        let filter =
+            DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         let mut ctx = context();
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"foobar".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"foobar".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(filter.execute(&ctx).unwrap());
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"baz".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"baz".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(!filter.execute(&ctx).unwrap());
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"oba".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"oba".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(filter.execute(&ctx).unwrap());
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(!filter.execute(&ctx).unwrap());
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"foobaroba".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"foobaroba".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(filter.execute(&ctx).unwrap());
     }
 
     #[test]
     fn test_compile_and_execute_contains_array() {
         let expr = FilterParser::parse("arr contains 2", &schema()).unwrap();
-        let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
+        let filter =
+            DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         let mut ctx = context();
-        ctx.set("arr", LiteralValue::Array(Arc::new(vec![
-            LiteralValue::Int(1),
-            LiteralValue::Int(2),
-            LiteralValue::Int(3),
-        ])), &schema()).unwrap();
+        ctx.set(
+            "arr",
+            LiteralValue::Array(Arc::new(vec![
+                LiteralValue::Int(1),
+                LiteralValue::Int(2),
+                LiteralValue::Int(3),
+            ])),
+            &schema(),
+        )
+        .unwrap();
         assert!(filter.execute(&ctx).unwrap());
-        ctx.set("arr", LiteralValue::Array(Arc::new(vec![
-            LiteralValue::Int(4),
-            LiteralValue::Int(5),
-        ])), &schema()).unwrap();
+        ctx.set(
+            "arr",
+            LiteralValue::Array(Arc::new(vec![LiteralValue::Int(4), LiteralValue::Int(5)])),
+            &schema(),
+        )
+        .unwrap();
         assert!(!filter.execute(&ctx).unwrap());
-        ctx.set("arr", LiteralValue::Array(Arc::new(vec![])), &schema()).unwrap();
+        ctx.set("arr", LiteralValue::Array(Arc::new(vec![])), &schema())
+            .unwrap();
         assert!(!filter.execute(&ctx).unwrap());
-        ctx.set("arr", LiteralValue::Array(Arc::new(vec![
-            LiteralValue::Int(2),
-        ])), &schema()).unwrap();
+        ctx.set(
+            "arr",
+            LiteralValue::Array(Arc::new(vec![LiteralValue::Int(2)])),
+            &schema(),
+        )
+        .unwrap();
         assert!(filter.execute(&ctx).unwrap());
     }
 
     #[test]
     fn test_compile_and_execute_wildcard() {
         let expr = FilterParser::parse("bar wildcard \"b*r\"", &schema()).unwrap();
-        let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
+        let filter =
+            DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         let mut ctx = context();
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"bar".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"bar".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(filter.execute(&ctx).unwrap());
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"BAR".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"BAR".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(filter.execute(&ctx).unwrap()); // case-insensitive
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"bxxr".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"bxxr".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(filter.execute(&ctx).unwrap());
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"bxxz".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"bxxz".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(!filter.execute(&ctx).unwrap());
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"foo".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"foo".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(!filter.execute(&ctx).unwrap());
     }
 
     #[test]
     fn test_compile_and_execute_strict_wildcard() {
         let expr = FilterParser::parse("bar strict wildcard \"b*r\"", &schema()).unwrap();
-        let filter = DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
+        let filter =
+            DefaultCompiler::compile(expr, Arc::new(schema()), Arc::new(FunctionRegistry::new()));
         let mut ctx = context();
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"bar".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"bar".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(filter.execute(&ctx).unwrap());
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"BAR".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"BAR".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(!filter.execute(&ctx).unwrap()); // case-sensitive
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"bxxr".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"bxxr".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(filter.execute(&ctx).unwrap());
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"bxxz".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"bxxz".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(!filter.execute(&ctx).unwrap());
-        ctx.set("bar", LiteralValue::Bytes(Arc::new(b"foo".to_vec())), &schema()).unwrap();
+        ctx.set(
+            "bar",
+            LiteralValue::Bytes(Arc::new(b"foo".to_vec())),
+            &schema(),
+        )
+        .unwrap();
         assert!(!filter.execute(&ctx).unwrap());
     }
-} 
+}

@@ -28,7 +28,9 @@ pub enum Instruction {
     CompareIn,
     CompareNotIn,
     CompareMatches,
-    CompareWildcard { strict: bool },
+    CompareWildcard {
+        strict: bool,
+    },
     CompareContains,
     /// Logical operations.
     LogicalAnd,
@@ -37,4 +39,4 @@ pub enum Instruction {
 }
 
 /// The IR stack used during interpretation.
-pub type IrStack = Vec<LiteralValue>; 
+pub type IrStack = Vec<LiteralValue>;

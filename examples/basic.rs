@@ -1,5 +1,5 @@
-use wirerust::*;
 use std::sync::Arc;
+use wirerust::*;
 
 fn main() -> Result<(), WirerustError> {
     // 1. Define schema
@@ -23,11 +23,21 @@ fn main() -> Result<(), WirerustError> {
 
     // 5. Create context and set values
     let mut ctx = FilterContext::new();
-    ctx.set("http.method", LiteralValue::Bytes(Arc::new(b"GET".to_vec()).into()), &schema)?;
+    ctx.set(
+        "http.method",
+        LiteralValue::Bytes(Arc::new(b"GET".to_vec()).into()),
+        &schema,
+    )?;
     ctx.set("port", LiteralValue::Int(80), &schema)?;
     ctx.set(
         "tags",
-        LiteralValue::Array(Arc::new(vec![LiteralValue::Bytes(Arc::new(b"foo".to_vec()).into()), LiteralValue::Bytes(Arc::new(b"bar".to_vec()).into())]).into()),
+        LiteralValue::Array(
+            Arc::new(vec![
+                LiteralValue::Bytes(Arc::new(b"foo".to_vec()).into()),
+                LiteralValue::Bytes(Arc::new(b"bar".to_vec()).into()),
+            ])
+            .into(),
+        ),
         &schema,
     )?;
 
@@ -38,4 +48,4 @@ fn main() -> Result<(), WirerustError> {
         Err(e) => println!("Filter error: {}", e),
     }
     Ok(())
-} 
+}

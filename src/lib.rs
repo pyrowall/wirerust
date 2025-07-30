@@ -11,25 +11,25 @@
 //! - Extensible function/type registry
 //! - Optional FFI/WASM bindings
 
-use thiserror::Error;
 use std::sync::Arc;
+use thiserror::Error;
 
-mod schema;
-mod expr;
 mod compiler;
-mod filter;
 mod context;
-mod types;
+mod expr;
+mod filter;
 mod functions;
 mod ir;
+mod schema;
+mod types;
 
-pub use schema::*;
-pub use expr::*;
 pub use compiler::*;
-pub use filter::*;
 pub use context::*;
-pub use types::*;
+pub use expr::*;
+pub use filter::*;
 pub use functions::*;
+pub use schema::*;
+pub use types::*;
 
 #[derive(Debug, Error)]
 #[non_exhaustive]
@@ -85,7 +85,11 @@ impl WirerustEngine {
     }
     /// Compile a parsed filter expression into an executable filter.
     pub fn compile_filter(&self, expr: FilterExpr) -> Result<CompiledFilter, WirerustError> {
-        Ok(CompiledFilter::new(expr, Arc::clone(&self.schema), Arc::clone(&self.functions)))
+        Ok(CompiledFilter::new(
+            expr,
+            Arc::clone(&self.schema),
+            Arc::clone(&self.functions),
+        ))
     }
     /// Parse and compile a filter expression string in one step.
     pub fn parse_and_compile(&self, expr: &str) -> Result<CompiledFilter, WirerustError> {
@@ -93,7 +97,11 @@ impl WirerustEngine {
         self.compile_filter(parsed)
     }
     /// Execute a compiled filter against a context.
-    pub fn execute(&self, filter: &CompiledFilter, ctx: &FilterContext) -> Result<bool, WirerustError> {
+    pub fn execute(
+        &self,
+        filter: &CompiledFilter,
+        ctx: &FilterContext,
+    ) -> Result<bool, WirerustError> {
         filter.execute(ctx)
     }
 }
@@ -126,7 +134,11 @@ impl WirerustEngineBuilder {
         self
     }
     /// Register a custom function.
-    pub fn register_function<F: FilterFunction + 'static>(mut self, name: impl Into<String>, func: F) -> Self {
+    pub fn register_function<F: FilterFunction + 'static>(
+        mut self,
+        name: impl Into<String>,
+        func: F,
+    ) -> Self {
         self.functions.register(name, func);
         self
     }
@@ -158,9 +170,9 @@ impl WirerustEngineBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::FieldType;
-    use crate::schema::FilterSchemaBuilder;
     use crate::context::FilterContextBuilder;
+    use crate::schema::FilterSchemaBuilder;
+    use crate::types::FieldType;
 
     #[test]
     fn test_wirerust_engine_end_to_end() {
@@ -169,10 +181,14 @@ mod tests {
             .field("bar", FieldType::Bytes)
             .build();
         let engine = WirerustEngine::new(schema);
-        let filter = engine.parse_and_compile("foo == 42 && bar == \"baz\"").unwrap();
+        let filter = engine
+            .parse_and_compile("foo == 42 && bar == \"baz\"")
+            .unwrap();
         let ctx = FilterContextBuilder::new(&engine.schema)
-            .set_int("foo", 42).unwrap()
-            .set_bytes("bar", b"baz").unwrap()
+            .set_int("foo", 42)
+            .unwrap()
+            .set_bytes("bar", b"baz")
+            .unwrap()
             .build();
         let result = engine.execute(&filter, &ctx).unwrap();
         assert!(result);
@@ -184,10 +200,14 @@ mod tests {
             .field("foo", FieldType::Int)
             .field("bar", FieldType::Bytes)
             .build();
-        let filter = engine.parse_and_compile("foo == 1 && bar == \"abc\"").unwrap();
+        let filter = engine
+            .parse_and_compile("foo == 1 && bar == \"abc\"")
+            .unwrap();
         let ctx = FilterContextBuilder::new(&engine.schema)
-            .set_int("foo", 1).unwrap()
-            .set_bytes("bar", b"abc").unwrap()
+            .set_int("foo", 1)
+            .unwrap()
+            .set_bytes("bar", b"abc")
+            .unwrap()
             .build();
         assert!(engine.execute(&filter, &ctx).unwrap());
     }
@@ -204,9 +224,12 @@ mod tests {
             .field("foo", FieldType::Int)
             .register_function("always_true", AlwaysTrue)
             .build();
-        let filter = engine.parse_and_compile("always_true() && foo == 5").unwrap();
+        let filter = engine
+            .parse_and_compile("always_true() && foo == 5")
+            .unwrap();
         let ctx = FilterContextBuilder::new(&engine.schema)
-            .set_int("foo", 5).unwrap()
+            .set_int("foo", 5)
+            .unwrap()
             .build();
         assert!(engine.execute(&filter, &ctx).unwrap());
     }
@@ -220,9 +243,13 @@ mod tests {
         // Built-in function 'len' should not be available
         let filter = engine.parse_and_compile("len(foo)").unwrap();
         let ctx = FilterContextBuilder::new(&engine.schema)
-            .set_int("foo", 1).unwrap()
+            .set_int("foo", 1)
+            .unwrap()
             .build();
         let result = engine.execute(&filter, &ctx);
-        assert!(result.is_err(), "Expected error when executing missing built-in function");
+        assert!(
+            result.is_err(),
+            "Expected error when executing missing built-in function"
+        );
     }
 }

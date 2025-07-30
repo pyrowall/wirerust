@@ -2,10 +2,10 @@
 //!
 //! This module provides the FilterExpr type and related AST node types.
 
-use crate::types::LiteralValue;
 use crate::schema::FilterSchema;
-use serde::{Serialize, Deserialize};
+use crate::types::LiteralValue;
 use crate::WirerustError;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -48,10 +48,10 @@ pub enum ComparisonOp {
     Gte,
     In,
     NotIn,
-    Matches, // for regex
-    Wildcard, // case-insensitive wildcard
+    Matches,        // for regex
+    Wildcard,       // case-insensitive wildcard
     StrictWildcard, // case-sensitive wildcard
-    Contains, // substring or element containment
+    Contains,       // substring or element containment
 }
 
 // Visitor trait for traversing the AST
@@ -72,10 +72,18 @@ impl<'a> FilterParser<'a> {
 
     pub fn parse(input: &str, schema: &FilterSchema) -> Result<FilterExpr, WirerustError> {
         let mut parser = FilterParser::new(input, schema);
-        let expr = parser.parse_expr().map_err(|e| WirerustError::ParseError(format!("Failed to parse expression at position {}: {e}", parser.pos)))?;
+        let expr = parser.parse_expr().map_err(|e| {
+            WirerustError::ParseError(format!(
+                "Failed to parse expression at position {}: {e}",
+                parser.pos
+            ))
+        })?;
         parser.skip_whitespace();
         if parser.pos < parser.input.len() {
-            return Err(WirerustError::ParseError(format!("Unexpected input at position {}", parser.pos)));
+            return Err(WirerustError::ParseError(format!(
+                "Unexpected input at position {}",
+                parser.pos
+            )));
         }
         Ok(expr)
     }
@@ -91,7 +99,10 @@ impl<'a> FilterParser<'a> {
             self.skip_whitespace();
             if self.consume("||") || self.consume("or") {
                 self.skip_whitespace();
-                let right = { self.skip_whitespace(); self.parse_and()? };
+                let right = {
+                    self.skip_whitespace();
+                    self.parse_and()?
+                };
                 left = FilterExpr::LogicalOp {
                     op: LogicalOp::Or,
                     left: Box::new(left),
@@ -111,7 +122,10 @@ impl<'a> FilterParser<'a> {
             self.skip_whitespace();
             if self.consume("&&") || self.consume("and") {
                 self.skip_whitespace();
-                let right = { self.skip_whitespace(); self.parse_not()? };
+                let right = {
+                    self.skip_whitespace();
+                    self.parse_not()?
+                };
                 left = FilterExpr::LogicalOp {
                     op: LogicalOp::And,
                     left: Box::new(left),
@@ -138,25 +152,30 @@ impl<'a> FilterParser<'a> {
         self.skip_whitespace();
         // Try to parse as a literal first, then as an identifier, then as a full expression
         let start_pos = self.pos;
-        
+
         // Try literal first (most specific)
         if let Ok(lit) = self.parse_literal() {
             return Ok(FilterExpr::Value(lit));
         }
         self.pos = start_pos;
-        
+
         // Try identifier (field reference)
         if let Ok(ident) = self.parse_identifier() {
-            return Ok(FilterExpr::Value(LiteralValue::Bytes(ident.into_bytes().into())));
+            return Ok(FilterExpr::Value(LiteralValue::Bytes(
+                ident.into_bytes().into(),
+            )));
         }
         self.pos = start_pos;
-        
+
         // Try full expression last (least specific)
         if let Ok(expr) = self.parse_expr() {
             return Ok(expr);
         }
-        
-        Err(WirerustError::ParseError(format!("Expected expression or value at position {}", self.pos)))
+
+        Err(WirerustError::ParseError(format!(
+            "Expected expression or value at position {}",
+            self.pos
+        )))
     }
 
     fn parse_comparison(&mut self) -> Result<FilterExpr, WirerustError> {
@@ -167,7 +186,10 @@ impl<'a> FilterParser<'a> {
             let inner = self.parse_expr()?;
             self.skip_whitespace();
             if !self.consume(")") {
-                return Err(WirerustError::ParseError(format!("Expected ')' at position {}", self.pos)));
+                return Err(WirerustError::ParseError(format!(
+                    "Expected ')' at position {}",
+                    self.pos
+                )));
             }
             inner
         } else {
@@ -202,7 +224,10 @@ impl<'a> FilterParser<'a> {
                     }
                 }
                 if !self.consume(")") {
-                    return Err(WirerustError::ParseError(format!("Expected ')' after function call at position {}", self.pos)));
+                    return Err(WirerustError::ParseError(format!(
+                        "Expected ')' after function call at position {}",
+                        self.pos
+                    )));
                 }
                 FilterExpr::FunctionCall { name: ident, args }
             } else if ident == "{" {
@@ -252,7 +277,10 @@ impl<'a> FilterParser<'a> {
             self.pos = end;
             Ok(ident.to_string())
         } else {
-            Err(WirerustError::ParseError(format!("Expected identifier at position {}", self.pos)))
+            Err(WirerustError::ParseError(format!(
+                "Expected identifier at position {}",
+                self.pos
+            )))
         }
     }
 
@@ -284,7 +312,10 @@ impl<'a> FilterParser<'a> {
                 return Ok((*op, *s));
             }
         }
-        Err(WirerustError::ParseError(format!("Expected operator at position {}", self.pos)))
+        Err(WirerustError::ParseError(format!(
+            "Expected operator at position {}",
+            self.pos
+        )))
     }
 
     fn parse_literal(&mut self) -> Result<LiteralValue, WirerustError> {
@@ -302,13 +333,19 @@ impl<'a> FilterParser<'a> {
                 return Ok(LiteralValue::Bool(false));
             }
         }
-        Err(WirerustError::ParseError(format!("Expected literal at position {}", self.pos)))
+        Err(WirerustError::ParseError(format!(
+            "Expected literal at position {}",
+            self.pos
+        )))
     }
 
     fn parse_string_literal(&mut self) -> Result<LiteralValue, WirerustError> {
         self.skip_whitespace();
         if self.peek() != Some('"') {
-            return Err(WirerustError::ParseError(format!("Expected \" at position {}", self.pos)));
+            return Err(WirerustError::ParseError(format!(
+                "Expected \" at position {}",
+                self.pos
+            )));
         }
         self.consume_char(); // consume opening quote
         let start = self.pos;
@@ -321,7 +358,10 @@ impl<'a> FilterParser<'a> {
             end = self.pos;
         }
         if self.peek() != Some('"') {
-            return Err(WirerustError::ParseError(format!("Unterminated string literal at position {}", self.pos)));
+            return Err(WirerustError::ParseError(format!(
+                "Unterminated string literal at position {}",
+                self.pos
+            )));
         }
         let s = &self.input[start..end];
         self.consume_char(); // consume closing quote
@@ -345,16 +385,24 @@ impl<'a> FilterParser<'a> {
             let s = &self.input[start..self.pos];
             match s.parse::<i64>() {
                 Ok(n) => Ok(LiteralValue::Int(n)),
-                Err(_) => Err(WirerustError::ParseError(format!("Invalid integer literal at position {start}"))),
+                Err(_) => Err(WirerustError::ParseError(format!(
+                    "Invalid integer literal at position {start}"
+                ))),
             }
         } else {
-            Err(WirerustError::ParseError(format!("Expected integer literal at position {}", self.pos)))
+            Err(WirerustError::ParseError(format!(
+                "Expected integer literal at position {}",
+                self.pos
+            )))
         }
     }
 
     fn parse_list_literal(&mut self) -> Result<Vec<LiteralValue>, WirerustError> {
         if !self.consume("{") {
-            return Err(WirerustError::ParseError(format!("Expected '{{' at position {}", self.pos)));
+            return Err(WirerustError::ParseError(format!(
+                "Expected '{{' at position {}",
+                self.pos
+            )));
         }
         let mut items = Vec::new();
         loop {
@@ -406,8 +454,8 @@ impl<'a> FilterParser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::FieldType;
     use crate::schema::FilterSchemaBuilder;
+    use crate::types::FieldType;
 
     fn schema() -> FilterSchema {
         FilterSchemaBuilder::new()
@@ -421,7 +469,10 @@ mod tests {
         let expr = FilterParser::parse("foo == 42", &schema()).unwrap();
         match expr {
             FilterExpr::Comparison { left, op, right } => {
-                assert_eq!(*left, FilterExpr::Value(LiteralValue::Bytes(b"foo".to_vec().into())));
+                assert_eq!(
+                    *left,
+                    FilterExpr::Value(LiteralValue::Bytes(b"foo".to_vec().into()))
+                );
                 assert_eq!(op, ComparisonOp::Eq);
                 assert_eq!(*right, FilterExpr::Value(LiteralValue::Int(42)));
             }
@@ -506,9 +557,12 @@ mod tests {
 
     #[test]
     fn test_parse_parens() {
-        let expr = FilterParser::parse("(foo == 1 || bar == \"baz\") && foo != 0", &schema()).unwrap();
+        let expr =
+            FilterParser::parse("(foo == 1 || bar == \"baz\") && foo != 0", &schema()).unwrap();
         match expr {
-            FilterExpr::LogicalOp { op: LogicalOp::And, .. } => {},
+            FilterExpr::LogicalOp {
+                op: LogicalOp::And, ..
+            } => {}
             _ => panic!("Expected top-level and"),
         }
     }
@@ -566,4 +620,4 @@ mod tests {
             _ => panic!("Expected contains comparison"),
         }
     }
-} 
+}

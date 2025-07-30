@@ -2,10 +2,10 @@
 //!
 //! This module provides FieldType and LiteralValue enums, covering all supported types.
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -22,14 +22,23 @@ pub enum FieldType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum LiteralValue {
-    #[serde(serialize_with = "serialize_arc_vec_u8", deserialize_with = "deserialize_arc_vec_u8")]
+    #[serde(
+        serialize_with = "serialize_arc_vec_u8",
+        deserialize_with = "deserialize_arc_vec_u8"
+    )]
     Bytes(Arc<Vec<u8>>),
     Int(i64),
     Bool(bool),
     Ip(IpAddr),
-    #[serde(serialize_with = "serialize_arc_vec_lv", deserialize_with = "deserialize_arc_vec_lv")]
+    #[serde(
+        serialize_with = "serialize_arc_vec_lv",
+        deserialize_with = "deserialize_arc_vec_lv"
+    )]
     Array(Arc<Vec<LiteralValue>>),
-    #[serde(serialize_with = "serialize_arc_map_lv", deserialize_with = "deserialize_arc_map_lv")]
+    #[serde(
+        serialize_with = "serialize_arc_map_lv",
+        deserialize_with = "deserialize_arc_map_lv"
+    )]
     Map(Arc<HashMap<String, LiteralValue>>),
 }
 
@@ -50,38 +59,58 @@ impl PartialEq for LiteralValue {
 impl Eq for LiteralValue {}
 
 fn serialize_arc_vec_u8<S>(arc: &Arc<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
-where S: Serializer {
+where
+    S: Serializer,
+{
     serializer.serialize_bytes(arc)
 }
 fn deserialize_arc_vec_u8<'de, D>(deserializer: D) -> Result<Arc<Vec<u8>>, D::Error>
-where D: Deserializer<'de> {
+where
+    D: Deserializer<'de>,
+{
     let v: Vec<u8> = Deserialize::deserialize(deserializer)?;
     Ok(Arc::new(v))
 }
 fn serialize_arc_vec_lv<S>(arc: &Arc<Vec<LiteralValue>>, serializer: S) -> Result<S::Ok, S::Error>
-where S: Serializer {
+where
+    S: Serializer,
+{
     let seq = arc.as_slice();
     seq.serialize(serializer)
 }
 fn deserialize_arc_vec_lv<'de, D>(deserializer: D) -> Result<Arc<Vec<LiteralValue>>, D::Error>
-where D: Deserializer<'de> {
+where
+    D: Deserializer<'de>,
+{
     let v: Vec<LiteralValue> = Deserialize::deserialize(deserializer)?;
     Ok(Arc::new(v))
 }
-fn serialize_arc_map_lv<S>(arc: &Arc<HashMap<String, LiteralValue>>, serializer: S) -> Result<S::Ok, S::Error>
-where S: Serializer {
+fn serialize_arc_map_lv<S>(
+    arc: &Arc<HashMap<String, LiteralValue>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
     let map = arc.as_ref();
     map.serialize(serializer)
 }
-fn deserialize_arc_map_lv<'de, D>(deserializer: D) -> Result<Arc<HashMap<String, LiteralValue>>, D::Error>
-where D: Deserializer<'de> {
+fn deserialize_arc_map_lv<'de, D>(
+    deserializer: D,
+) -> Result<Arc<HashMap<String, LiteralValue>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
     let m: HashMap<String, LiteralValue> = Deserialize::deserialize(deserializer)?;
     Ok(Arc::new(m))
 }
 
 impl FieldType {
     pub fn is_primitive(&self) -> bool {
-        matches!(self, FieldType::Bytes | FieldType::Int | FieldType::Bool | FieldType::Ip)
+        matches!(
+            self,
+            FieldType::Bytes | FieldType::Int | FieldType::Bool | FieldType::Ip
+        )
     }
 }
 
@@ -152,7 +181,6 @@ mod tests {
     use std::net::IpAddr;
     use std::str::FromStr;
 
-
     #[test]
     fn test_field_type_is_primitive() {
         assert!(FieldType::Int.is_primitive());
@@ -166,21 +194,28 @@ mod tests {
     #[test]
     fn test_literal_value_get_type() {
         assert_eq!(LiteralValue::Int(1).get_type(), FieldType::Int);
-        assert_eq!(LiteralValue::Bytes(Arc::new(b"abc".to_vec())).get_type(), FieldType::Bytes);
+        assert_eq!(
+            LiteralValue::Bytes(Arc::new(b"abc".to_vec())).get_type(),
+            FieldType::Bytes
+        );
         assert_eq!(LiteralValue::Bool(true).get_type(), FieldType::Bool);
         let ip = IpAddr::from_str("127.0.0.1").unwrap();
         assert_eq!(LiteralValue::Ip(ip).get_type(), FieldType::Ip);
         let arr = LiteralValue::Array(Arc::new(vec![LiteralValue::Int(1), LiteralValue::Int(2)]));
         assert_eq!(arr.get_type(), FieldType::Array(Box::new(FieldType::Int)));
         let map = LiteralValue::Map(Arc::new(Default::default()));
-        assert_eq!(map.get_type(), FieldType::Map(Box::new(FieldType::Unknown))); // Updated to match new logic
+        assert_eq!(map.get_type(), FieldType::Map(Box::new(FieldType::Unknown)));
+        // Updated to match new logic
     }
 
     #[test]
     fn test_array_type_inference_empty() {
         let arr = LiteralValue::Array(Arc::new(vec![]));
         // Defaults to Bytes if empty
-        assert_eq!(arr.get_type(), FieldType::Array(Box::new(FieldType::Unknown)));
+        assert_eq!(
+            arr.get_type(),
+            FieldType::Array(Box::new(FieldType::Unknown))
+        );
     }
 
     #[test]
@@ -202,4 +237,4 @@ mod tests {
         let deser: LiteralValue = serde_json::from_str(&json).unwrap();
         assert_eq!(val, deser);
     }
-} 
+}

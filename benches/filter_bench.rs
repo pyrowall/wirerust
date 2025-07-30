@@ -1,18 +1,22 @@
-use criterion::{criterion_group, criterion_main, Criterion, black_box};
-use wirerust::*;
-use wirerust::FieldType;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::sync::Arc;
+use wirerust::FieldType;
+use wirerust::*;
 
 fn bench_parse_compile_execute(c: &mut Criterion) {
-    let schema = Arc::new(FilterSchemaBuilder::new()
-        .field("foo", FieldType::Int)
-        .field("bar", FieldType::Bytes)
-        .build());
+    let schema = Arc::new(
+        FilterSchemaBuilder::new()
+            .field("foo", FieldType::Int)
+            .field("bar", FieldType::Bytes)
+            .build(),
+    );
     let engine = WirerustEngine::new((*schema).clone());
     let expr_str = "foo == 42 && bar == \"baz\"";
     let ctx = FilterContextBuilder::new(&schema)
-        .set_int("foo", 42).unwrap()
-        .set_bytes("bar", b"baz").unwrap()
+        .set_int("foo", 42)
+        .unwrap()
+        .set_bytes("bar", b"baz")
+        .unwrap()
         .build();
 
     c.bench_function("parse", |b| {
@@ -34,4 +38,4 @@ fn bench_parse_compile_execute(c: &mut Criterion) {
 }
 
 criterion_group!(benches, bench_parse_compile_execute);
-criterion_main!(benches); 
+criterion_main!(benches);
