@@ -48,15 +48,6 @@ jobs:
     - name: Run tests with all features
       run: cargo test --all-features
 
-    - name: Build documentation
-      run: cargo doc --no-deps --all-features
-
-    - name: Upload documentation
-      uses: actions/upload-artifact@v4
-      with:
-        name: documentation
-        path: target/doc/
-
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
